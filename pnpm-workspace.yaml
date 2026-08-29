@@ -1,0 +1,9 @@
+packages:
+  - playground
+
+shamefullyHoist: true
+strictPeerDependencies: false
+
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true
