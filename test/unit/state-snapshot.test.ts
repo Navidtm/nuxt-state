@@ -57,7 +57,9 @@ describe('state snapshots', () => {
     const firstName = ref('Client')
     const lastName = ref('Initial')
     const setter = vi.fn((value: string) => {
-      ;[firstName.value, lastName.value] = value.split(' ')
+      const [first = '', last = ''] = value.split(' ')
+      firstName.value = first
+      lastName.value = last
     })
     const fullName = computed({
       get: () => `${firstName.value} ${lastName.value}`,
