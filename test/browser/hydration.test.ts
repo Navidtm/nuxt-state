@@ -170,4 +170,67 @@ describe('browser hydration', async () => {
 
     await page.close()
   })
+
+  it('coexists with useAsyncData across hydration, consumers, and refresh', async () => {
+    const page = await createPage()
+    const browserMessages: string[] = []
+    const apiRequests: string[] = []
+
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') {
+        browserMessages.push(message.text())
+      }
+    })
+    page.on('pageerror', (error) => browserMessages.push(error.message))
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === '/api/products') apiRequests.push(request.url())
+    })
+
+    await page.goto(url('/products'), { waitUntil: 'hydration' })
+
+    await expect(page.locator('#product-primary-count').textContent()).resolves.toBe('2')
+    await expect(page.locator('#product-secondary-count').textContent()).resolves.toBe('2')
+    await expect(page.locator('#product-primary-status').textContent()).resolves.toBe('success')
+    await expect(page.locator('#product-primary-error').textContent()).resolves.toBe('false')
+    expect(apiRequests).toHaveLength(0)
+
+    const initialRequestId = await page.locator('#product-primary-request').textContent()
+    expect(await page.locator('#product-secondary-request').textContent()).toBe(initialRequestId)
+
+    const response = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === '/api/products',
+    )
+    await page.locator('#product-refresh').click()
+    await response
+    await expect
+      .poll(() => page.locator('#product-primary-request').textContent())
+      .not.toBe(initialRequestId)
+
+    expect(await page.locator('#product-secondary-request').textContent()).toBe(
+      await page.locator('#product-primary-request').textContent(),
+    )
+    expect(apiRequests).toHaveLength(1)
+    expect(browserMessages.filter((message) => /hydration|mismatch/i.test(message))).toEqual([])
+
+    await page.close()
+  })
+
+  it('preserves callOnce results through hydration', async () => {
+    const page = await createPage()
+    const browserMessages: string[] = []
+
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') {
+        browserMessages.push(message.text())
+      }
+    })
+    page.on('pageerror', (error) => browserMessages.push(error.message))
+
+    await page.goto(url('/once'), { waitUntil: 'hydration' })
+
+    await expect(page.locator('#once-runs').textContent()).resolves.toBe('1')
+    expect(browserMessages.filter((message) => /hydration|mismatch/i.test(message))).toEqual([])
+
+    await page.close()
+  })
 })

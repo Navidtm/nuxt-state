@@ -97,4 +97,28 @@ describe('nuxt-state module', async () => {
     expect(html).toContain('<output id="session-deep">false</output>')
     expect(html).toContain('__nuxt_state__')
   })
+
+  it('coexists with useAsyncData without duplicating its response body', async () => {
+    const [directHTML, stateHTML] = await Promise.all([
+      $fetch<string>('/products-direct'),
+      $fetch<string>('/products'),
+    ])
+    const payloadPattern =
+      /<script type="application\/json" data-nuxt-data="nuxt-app"[^>]*>(.*?)<\/script>/s
+    const directPayload = directHTML.match(payloadPattern)?.[1]
+    const statePayload = stateHTML.match(payloadPattern)?.[1]
+
+    expect(stateHTML).toContain('<output id="product-primary-count">2</output>')
+    expect(stateHTML).toContain('<output id="product-secondary-count">2</output>')
+    expect(directPayload!.match(/NUXT_STATE_ASYNC_DATA/g)).toHaveLength(1)
+    expect(statePayload!.match(/NUXT_STATE_ASYNC_DATA/g)).toHaveLength(1)
+    expect(Buffer.byteLength(statePayload!) - Buffer.byteLength(directPayload!)).toBeLessThan(256)
+  })
+
+  it('supports callOnce from an exposed state function during SSR', async () => {
+    const html = await $fetch<string>('/once')
+
+    expect(html).toContain('<output id="once-runs">1</output>')
+    expect(html).toContain('nuxt-state-initialize')
+  })
 })
