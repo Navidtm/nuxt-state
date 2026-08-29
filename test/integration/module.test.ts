@@ -121,4 +121,25 @@ describe('nuxt-state module', async () => {
     expect(html).toContain('<output id="once-runs">1</output>')
     expect(html).toContain('nuxt-state-initialize')
   })
+
+  it('shares one state across plugin, middleware, layout, page, and component', async () => {
+    const html = await $fetch<string>('/context-a')
+
+    expect(html).toContain('<output id="plugin-shared">true</output>')
+    expect(html).toContain('<output id="middleware-shared">true</output>')
+    expect(html).toContain('<output id="layout-shared">true</output>')
+    expect(html).toContain('<output id="page-shared">true</output>')
+    expect(html).toContain('<output id="component-shared">true</output>')
+    expect(html).toContain('<output id="runtime-label">fixture-runtime-config</output>')
+    expect(html).toContain('<output id="context-path">/context-a</output>')
+    expect(html).toContain('<output id="cookie-authenticated">true</output>')
+  })
+
+  it('does not initialize navigation-only state during unrelated SSR', async () => {
+    const html = await $fetch<string>('/navigation-a')
+
+    expect(html).toContain('<output id="navigation-count">10</output>')
+    expect(html).not.toContain('lazy-id')
+    expect(html).not.toContain('lazy-component-id')
+  })
 })

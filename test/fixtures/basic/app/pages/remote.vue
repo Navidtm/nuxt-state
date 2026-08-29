@@ -8,5 +8,10 @@ await useRemoteData().ready
   <main>
     <RemoteDataPrimary />
     <RemoteDataSecondary />
+    <NuxtLink
+      id="remote-navigation"
+      to="/navigation-b"
+      >Continue</NuxtLink
+    >
   </main>
 </template>
