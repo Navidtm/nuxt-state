@@ -70,6 +70,24 @@ to this transform in both development and production builds. Explicit imports ar
 transformable when their resolved source exactly matches the configured runtime file;
 barrel re-exports are not followed by Nuxt's compiler.
 
+The first production-build verification used the module through a workspace link and
+confirmed the native transform in generated server output. For example, developer code
+equivalent to:
+
+```ts
+export const useLocale = defineState(() => ({ locale: ref('en') }))
+```
+
+appeared after transformation in this conceptual shape:
+
+```ts
+const useLocale = defineState(() => ({ locale: ref('en') }), '$<nuxt-generated-hash>')
+```
+
+Two adjacent `defineState` calls in the same source file received different hashes. The
+exact observed values are intentionally omitted because their format and value belong to
+Nuxt internals.
+
 ### Hydration lifecycle
 
 Nuxt's `useHydration(key, get, set)` is designed primarily for module plugins. Its current

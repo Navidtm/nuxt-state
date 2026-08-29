@@ -13,10 +13,17 @@ export default defineNuxtModule<ModuleOptions>({
   defaults: {},
   setup(_options, nuxt) {
     const resolver = createResolver(import.meta.url)
+    const defineStateSource = resolver.resolve('./runtime/app/composables/defineState')
 
     addImports({
       name: 'defineState',
-      from: resolver.resolve('./runtime/app/composables/defineState'),
+      from: defineStateSource,
+    })
+
+    nuxt.options.optimization.keyedComposables.push({
+      name: 'defineState',
+      source: defineStateSource,
+      argumentLength: 2,
     })
 
     // Unimport scans a plain directory at one level. The glob keeps Nuxt Kit's
