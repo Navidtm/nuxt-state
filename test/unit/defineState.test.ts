@@ -1,7 +1,13 @@
 import { computed, reactive, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineState } from '../../src/runtime/app/composables/defineState'
+import { collectStateSnapshots, receiveStateSnapshots } from '../../src/runtime/app/state-registry'
 import { setCurrentNuxtApp } from './nuxt-app-mock'
+
+const defineStateInternal = defineState as unknown as <T>(
+  factory: () => T,
+  internalKey?: string,
+) => () => T
 
 describe('defineState', () => {
   beforeEach(() => setCurrentNuxtApp({}))
@@ -71,6 +77,43 @@ describe('defineState', () => {
     expect(useFirst()).not.toBe(useSecond())
     useFirst().value.value = 'changed'
     expect(useSecond().value.value).toBe('second')
+  })
+
+  it('collects final state at render time instead of factory defaults', () => {
+    const nuxtApp = {}
+    setCurrentNuxtApp(nuxtApp)
+    const useCounter = defineStateInternal(() => ({ count: ref(0) }), '$counter')
+
+    useCounter().count.value = 41
+
+    expect(collectStateSnapshots(nuxtApp)).toEqual({
+      $counter: {
+        count: { type: 'ref', value: 41 },
+      },
+    })
+  })
+
+  it('restores a compiler-keyed state before returning it', () => {
+    const nuxtApp = {}
+    setCurrentNuxtApp(nuxtApp)
+    receiveStateSnapshots(nuxtApp, {
+      $counter: {
+        count: { type: 'ref', value: 41 },
+      },
+    })
+    const useCounter = defineStateInternal(() => {
+      const count = ref(0)
+      const double = computed(() => count.value * 2)
+      const increment = () => count.value++
+      return { count, double, increment }
+    }, '$counter')
+
+    const state = useCounter()
+
+    expect(state.count.value).toBe(41)
+    expect(state.double.value).toBe(82)
+    state.increment()
+    expect(state.double.value).toBe(84)
   })
 
   it('rejects async factories at runtime for JavaScript callers', async () => {

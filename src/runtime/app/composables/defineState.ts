@@ -1,4 +1,6 @@
 import { useNuxtApp } from '#app'
+import { registerHydratableState } from '../state-registry'
+import { restoreState, snapshotState } from '../state-snapshot'
 
 type NotPromise<T> = T extends PromiseLike<unknown> ? never : unknown
 
@@ -14,7 +16,7 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
  * Turns a synchronous composable factory into state shared by one Nuxt app.
  */
 export function defineState<T>(factory: () => T & NotPromise<T>): () => T
-export function defineState<T>(factory: () => T & NotPromise<T>, _internalKey?: string): () => T {
+export function defineState<T>(factory: () => T & NotPromise<T>, internalKey?: string): () => T {
   const instances = new WeakMap<object, T>()
 
   return function useDefinedState(): T {
@@ -34,6 +36,14 @@ export function defineState<T>(factory: () => T & NotPromise<T>, _internalKey?: 
     }
 
     instances.set(nuxtApp, instance)
+
+    if (internalKey) {
+      registerHydratableState(nuxtApp, internalKey, {
+        snapshot: () => snapshotState(instance),
+        restore: (snapshot) => restoreState(instance, snapshot),
+      })
+    }
+
     return instance
   }
 }
