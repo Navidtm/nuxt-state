@@ -54,4 +54,37 @@ describe('nuxt-state module', async () => {
     expect(second).toContain('<output id="remote-secondary-marker">request-b</output>')
     expect(second).not.toContain('<output id="remote-primary-marker">request-a</output>')
   })
+
+  it('characterizes private mutable state as invisible to snapshots', async () => {
+    const html = await $fetch<string>('/private-state')
+
+    expect(html).toContain('<output id="private-double">2</output>')
+    expect(html).toMatch(/"__nuxt_state__":\d+/)
+    expect(html).not.toContain('"type":"ref"')
+  })
+
+  it('does not serialize a large useFetch response twice', async () => {
+    const [directHTML, stateHTML] = await Promise.all([
+      $fetch<string>('/payload-direct'),
+      $fetch<string>('/payload-state'),
+    ])
+    const payloadPattern =
+      /<script type="application\/json" data-nuxt-data="nuxt-app"[^>]*>(.*?)<\/script>/s
+    const directPayload = directHTML.match(payloadPattern)?.[1]
+    const statePayload = stateHTML.match(payloadPattern)?.[1]
+
+    expect(directPayload).toBeTruthy()
+    expect(statePayload).toBeTruthy()
+    expect(directPayload!.match(/NUXT_STATE_LARGE_PAYLOAD/g)).toHaveLength(1)
+    expect(statePayload!.match(/NUXT_STATE_LARGE_PAYLOAD/g)).toHaveLength(1)
+    expect(statePayload).toContain('__nuxt_state__')
+
+    const payloadOverhead = Buffer.byteLength(statePayload!) - Buffer.byteLength(directPayload!)
+    const htmlOverhead = Buffer.byteLength(stateHTML) - Buffer.byteLength(directHTML)
+
+    // Nuxt's graph serializer points both payload entries at the same response object.
+    // Only nuxt-state's small snapshot metadata should be added, not another 16 KiB value.
+    expect(payloadOverhead).toBeLessThan(128)
+    expect(htmlOverhead).toBeLessThan(256)
+  })
 })

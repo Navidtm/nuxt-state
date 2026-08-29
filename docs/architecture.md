@@ -189,6 +189,40 @@ snapshot. This does not initiate, cache, or replace a request: Nuxt's own payloa
 authority for data fetching, and the regression suite verifies that coexistence. Writable
 computed and advanced reactivity primitives are deliberately not official v0.1.0 guarantees.
 
+### Payload-efficiency audit
+
+A characterization fixture returned a recognizable response containing approximately 16 KiB of
+text. The response was reachable through both Nuxt's `payload.data` entry and the module's
+`__nuxt_state__` ref snapshot. In the serialized payload, however, the large object appeared only
+once: the snapshot's `value` was a graph reference to the same object used by Nuxt data.
+
+For the audited production fixture, the direct-`useFetch` JSON payload was 16,706 bytes and the
+`defineState` variant was 16,761 bytes, an increase of 55 bytes. Complete HTML increased from
+17,844 to 17,975 bytes, or 131 bytes. These figures characterize this fixture rather than promise
+fixed overhead, but they prove the 16 KiB body was not duplicated. No undocumented Nuxt internals
+are used to obtain this behavior.
+
+## Private reactive state
+
+Snapshot discovery walks the enumerable members returned by the factory. It cannot observe a ref
+that exists only inside a factory closure:
+
+```ts
+const count = ref(0)
+const double = computed(() => count.value * 2)
+return { double, increment: () => count.value++ }
+```
+
+If SSR invokes `increment()`, the server renders `double` as `2`. The snapshot is empty because
+`double` is readonly and `count` was not exposed. The client recreates `count` as `0`, renders
+`double` as `0`, and Vue reports a text hydration mismatch before correcting the DOM.
+
+Reactive state that must survive SSR hydration currently needs to be exposed from the
+`defineState` factory. Supporting closure-private state would require substantially more magic:
+instrumenting Vue state creation, inspecting undocumented computed/effect internals, statically
+rewriting factory closures, or introducing a new explicit registration API. v0.1.0 deliberately
+does none of these.
+
 ## Verified behavior
 
 The automated suite proves:
@@ -215,5 +249,7 @@ Nuxt implementation detail.
   random IDs, counters, and stack-derived fallbacks are intentionally avoided.
 - Payload values must be serializable by Nuxt. The module does not add a serializer or persistence
   format.
+- Mutable state hidden inside the factory closure cannot be snapshotted. It must be returned if an
+  SSR mutation needs to hydrate.
 - Only standard `ref()` and `reactive()` hydration is promised in v0.1.0. Readonly computed refs
   and functions are recreated, not snapshotted.

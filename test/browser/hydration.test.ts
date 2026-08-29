@@ -86,4 +86,27 @@ describe('browser hydration', async () => {
 
     await page.close()
   })
+
+  it('characterizes private mutable state as non-hydratable', async () => {
+    const page = await createPage()
+    const browserMessages: string[] = []
+
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') {
+        browserMessages.push(message.text())
+      }
+    })
+    page.on('pageerror', (error) => browserMessages.push(error.message))
+
+    await page.goto(url('/private-state'), { waitUntil: 'hydration' })
+
+    await expect(page.locator('#private-double').textContent()).resolves.toBe('0')
+    expect(
+      browserMessages.some((message) =>
+        /hydration.*mismatch|text content does not match/i.test(message),
+      ),
+    ).toBe(true)
+
+    await page.close()
+  })
 })

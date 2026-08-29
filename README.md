@@ -128,10 +128,22 @@ payload serializer. Functions, readonly computed refs, and plain runtime objects
 by the factory rather than serialized. Concurrent SSR requests retain separate Nuxt-app
 registries and cannot share user state.
 
+Snapshot discovery is intentionally limited to mutable members exposed by the factory. Reactive
+state that must survive SSR hydration currently needs to be exposed from the `defineState`
+factory. A private ref captured only by a computed value or function is not visible to the
+snapshot layer; if it is mutated during SSR, its client value can differ and cause a hydration
+mismatch. Discovering closure-private Vue state would require a new explicit API, compiler-level
+analysis, or undocumented reactivity inspection, none of which belongs in v0.1.0.
+
 `useFetch()` can remain inside a synchronous state factory. Its request caching and payload
 hydration still belong to Nuxt; `nuxt-state` neither replaces nor triggers a second fetch
 mechanism. If multiple sibling SSR components must all render completed data, await the returned
 Nuxt `AsyncData` promise in a parent/page as you would with normal Nuxt data fetching.
+
+When a returned `useFetch().data` ref is snapshotted, both Nuxt's data payload and the internal
+state snapshot refer to it. Nuxt's graph serializer preserves the shared object identity, so the
+response body is emitted once rather than copied into the HTML twice. There is still a small
+snapshot-metadata overhead.
 
 ## Current limitations
 
@@ -143,6 +155,8 @@ Nuxt `AsyncData` promise in a parent/page as you would with normal Nuxt data fet
   guarantees.
 - Hydrated values must be serializable by Nuxt's payload system; DOM nodes, sockets, functions
   inside refs, symbols, and arbitrary native/class resources are unsupported.
+- Closure-private mutable state is not discoverable; return any ref/reactive value whose SSR
+  mutations must hydrate.
 - No Nuxt Layers support yet.
 - State resets when its module is hot-reloaded; HMR preservation is not implemented.
 - Compatibility with every context-sensitive Nuxt composable inside a factory is not

@@ -16,6 +16,10 @@ format as an internal implementation detail.
 
 ## Later investigation
 
+- private mutable state hydration without relying on undocumented Vue internals or turning the
+  factory into a compiler-managed DSL;
+- payload-efficiency guarantees for Nuxt data composables, including whether metadata can be
+  omitted through a future public marker or coordination API;
 - `shallowRef` and `shallowReactive` guarantees;
 - advanced Vue reactivity primitives and writable computed edge cases;
 - Nuxt Layers;

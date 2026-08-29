@@ -13,3 +13,6 @@
   reactive updates, concurrent SSR requests, and `useFetch()` coexistence.
 
 The internal payload and snapshot formats are not public API and may change before 1.0.
+Mutable state must be returned from the factory to participate in SSR hydration. Nuxt data
+composable values can appear in the internal snapshot metadata, but Nuxt's graph serializer
+shares the underlying response object rather than serializing its body twice.
