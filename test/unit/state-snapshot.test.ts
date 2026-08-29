@@ -180,6 +180,111 @@ describe('state snapshots', () => {
     })
   })
 
+  it('handles array growth, shrinkage, replacement, null, undefined, and deletion', () => {
+    const state = reactive({
+      growing: [1],
+      shrinking: [1, 2, 3],
+      replaced: { old: true } as null | { old: boolean },
+      optional: 'client' as string | undefined,
+      obsolete: true,
+    })
+
+    restoreState(
+      { state },
+      {
+        state: {
+          type: 'reactive',
+          value: {
+            growing: [1, 2, 3],
+            shrinking: [9],
+            replaced: null,
+            optional: undefined,
+          },
+        },
+      },
+    )
+
+    expect(state).toEqual({
+      growing: [1, 2, 3],
+      shrinking: [9],
+      replaced: null,
+      optional: undefined,
+    })
+    expect('obsolete' in state).toBe(false)
+  })
+
+  it('preserves Date, Map, and Set values through restoration', () => {
+    const state = reactive({
+      createdAt: new Date('2000-01-01T00:00:00.000Z'),
+      tags: new Set(['client']),
+      values: new Map([['client', 0]]),
+    })
+    const serverValues = {
+      createdAt: new Date('2026-01-02T03:04:05.000Z'),
+      tags: new Set(['a', 'b']),
+      values: new Map([
+        ['a', 1],
+        ['b', 2],
+      ]),
+    }
+
+    restoreState(
+      { state },
+      {
+        state: { type: 'reactive', value: serverValues },
+      },
+    )
+
+    expect(state.createdAt).toBeInstanceOf(Date)
+    expect(state.createdAt.toISOString()).toBe('2026-01-02T03:04:05.000Z')
+    expect([...state.tags]).toEqual(['a', 'b'])
+    expect([...state.values]).toEqual([
+      ['a', 1],
+      ['b', 2],
+    ])
+  })
+
+  it('preserves shared references from the server graph', () => {
+    const state = reactive({
+      a: { value: 0 },
+      b: { value: 0 },
+    })
+    const shared = { value: 41 }
+
+    restoreState(
+      { state },
+      {
+        state: { type: 'reactive', value: { a: shared, b: shared } },
+      },
+    )
+
+    expect(state.a.value).toBe(41)
+    expect(state.a).toBe(state.b)
+  })
+
+  it('restores cyclic objects without recursion overflow', () => {
+    interface CyclicValue {
+      value: string
+      self?: CyclicValue
+    }
+
+    const clientCycle: CyclicValue = { value: 'client' }
+    clientCycle.self = clientCycle
+    const state = reactive({ cycle: clientCycle })
+    const serverCycle: CyclicValue = { value: 'server' }
+    serverCycle.self = serverCycle
+
+    restoreState(
+      { state },
+      {
+        state: { type: 'reactive', value: { cycle: serverCycle } },
+      },
+    )
+
+    expect(state.cycle.value).toBe('server')
+    expect(state.cycle.self).toBe(state.cycle)
+  })
+
   it('keeps computed values and functions connected to hydrated state', () => {
     const count = ref(0)
     const double = computed(() => count.value * 2)

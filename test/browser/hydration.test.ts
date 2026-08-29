@@ -141,4 +141,33 @@ describe('browser hydration', async () => {
 
     await page.close()
   })
+
+  it('hydrates rich, shared, and cyclic object graphs without mismatches', async () => {
+    const page = await createPage()
+    const browserMessages: string[] = []
+
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') {
+        browserMessages.push(message.text())
+      }
+    })
+    page.on('pageerror', (error) => browserMessages.push(error.message))
+
+    await page.goto(url('/graph'), { waitUntil: 'hydration' })
+
+    await expect(page.locator('#shared-value').textContent()).resolves.toBe('41')
+    await expect(page.locator('#shared-identity').textContent()).resolves.toBe('true')
+    await expect(page.locator('#cycle-value').textContent()).resolves.toBe('server')
+    await expect(page.locator('#cycle-identity').textContent()).resolves.toBe('true')
+    await expect(page.locator('#date-value').textContent()).resolves.toBe(
+      '2026-01-02T03:04:05.000Z',
+    )
+    await expect(page.locator('#set-value').textContent()).resolves.toBe('a,b')
+    await expect(page.locator('#map-value').textContent()).resolves.toBe('a,1,b,2')
+    await expect(page.locator('#array-value').textContent()).resolves.toBe('9')
+    await expect(page.locator('#obsolete-value').textContent()).resolves.toBe('false')
+    expect(browserMessages.filter((message) => /hydration|mismatch/i.test(message))).toEqual([])
+
+    await page.close()
+  })
 })

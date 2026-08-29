@@ -51,36 +51,45 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 function canPatch(target: unknown, source: unknown): boolean {
   return (
     (Array.isArray(target) && Array.isArray(source)) ||
-    (isPlainRecord(target) && isPlainRecord(source))
+    (isPlainRecord(target) && !isRef(target) && isPlainRecord(source) && !isRef(source))
   )
 }
 
-function patchValue(target: unknown, source: unknown): void {
-  if (Array.isArray(target) && Array.isArray(source)) {
-    for (let index = 0; index < source.length; index++) {
-      if (canPatch(target[index], source[index])) {
-        patchValue(target[index], source[index])
-      } else {
-        target[index] = source[index]
-      }
-    }
-    target.length = source.length
-    return
+function isTrackableObject(value: unknown): value is object {
+  return typeof value === 'object' && value !== null
+}
+
+function patchValue(target: unknown, source: unknown, seen: WeakMap<object, unknown>): unknown {
+  if (!isTrackableObject(source)) return source
+
+  if (seen.has(source)) return seen.get(source)
+
+  if (!canPatch(target, source)) {
+    seen.set(source, source)
+    return source
   }
 
-  if (!isPlainRecord(target) || !isPlainRecord(source)) return
+  seen.set(source, target)
+
+  if (Array.isArray(target) && Array.isArray(source)) {
+    for (let index = 0; index < source.length; index++) {
+      target[index] = patchValue(target[index], source[index], seen)
+    }
+    target.length = source.length
+    return target
+  }
+
+  if (!isPlainRecord(target) || !isPlainRecord(source)) return source
 
   for (const key of Object.keys(target)) {
     if (!(key in source)) delete target[key]
   }
 
   for (const [key, value] of Object.entries(source)) {
-    if (canPatch(target[key], value)) {
-      patchValue(target[key], value)
-    } else {
-      target[key] = value
-    }
+    target[key] = patchValue(target[key], value, seen)
   }
+
+  return target
 }
 
 function isStateSnapshotEntry(value: unknown): value is StateSnapshotEntry {
@@ -94,6 +103,8 @@ function isStateSnapshotEntry(value: unknown): value is StateSnapshotEntry {
 export function restoreState(state: unknown, snapshot: unknown): void {
   if (!isObjectLike(state) || !isPlainRecord(snapshot)) return
 
+  const seen = new WeakMap<object, unknown>()
+
   for (const [name, entry] of Object.entries(snapshot)) {
     if (!isStateSnapshotEntry(entry)) continue
 
@@ -102,7 +113,7 @@ export function restoreState(state: unknown, snapshot: unknown): void {
     if (entry.type === 'ref' && isRef(target) && !isReadonly(target)) {
       target.value = entry.value
     } else if (entry.type === 'reactive' && isReactive(target) && !isReadonly(target)) {
-      patchValue(target, entry.value)
+      patchValue(target, entry.value, seen)
     }
   }
 }
