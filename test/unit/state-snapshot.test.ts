@@ -1,5 +1,5 @@
 import { computed, reactive, readonly, ref } from 'vue'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { restoreState, snapshotState } from '../../src/runtime/app/state-snapshot'
 
 describe('state snapshots', () => {
@@ -33,6 +33,51 @@ describe('state snapshots', () => {
         readonly: readonly({ value: 1 }),
       }),
     ).toEqual({})
+  })
+
+  it('hydrates a mutable source once and lets its returned readonly view update', () => {
+    const count = ref(0)
+    const publicCount = readonly(count)
+    const state = { count, publicCount }
+
+    expect(snapshotState(state)).toEqual({
+      count: { type: 'ref', value: 0 },
+    })
+
+    restoreState(state, {
+      count: { type: 'ref', value: 41 },
+      publicCount: { type: 'ref', value: 99 },
+    })
+
+    expect(count.value).toBe(41)
+    expect(publicCount.value).toBe(41)
+  })
+
+  it('characterizes writable computed refs as mutable through public Vue introspection', () => {
+    const firstName = ref('Client')
+    const lastName = ref('Initial')
+    const setter = vi.fn((value: string) => {
+      ;[firstName.value, lastName.value] = value.split(' ')
+    })
+    const fullName = computed({
+      get: () => `${firstName.value} ${lastName.value}`,
+      set: setter,
+    })
+
+    expect(snapshotState({ fullName })).toEqual({
+      fullName: { type: 'ref', value: 'Client Initial' },
+    })
+
+    restoreState(
+      { fullName },
+      {
+        fullName: { type: 'ref', value: 'Server User' },
+      },
+    )
+
+    expect(setter).toHaveBeenCalledWith('Server User')
+    expect(firstName.value).toBe('Server')
+    expect(lastName.value).toBe('User')
   })
 
   it('restores refs while preserving their runtime identity', () => {
@@ -104,6 +149,49 @@ describe('state snapshots', () => {
     state.increment()
     expect(state.count.value).toBe(42)
     expect(state.double.value).toBe(84)
+  })
+
+  it('recomputes a chain of readonly computed refs from hydrated state', () => {
+    const a = ref(1)
+    const b = computed(() => a.value + 1)
+    const c = computed(() => b.value + 1)
+
+    restoreState(
+      { a, b, c },
+      {
+        a: { type: 'ref', value: 40 },
+      },
+    )
+
+    expect(b.value).toBe(41)
+    expect(c.value).toBe(42)
+    expect(snapshotState({ a, b, c })).toEqual({
+      a: { type: 'ref', value: 40 },
+    })
+  })
+
+  it('preserves Vue nested-ref behavior inside reactive and ref state', () => {
+    const current = ref(1)
+    const reactiveState = reactive({ current })
+    const refState = ref({ nested: { value: 1 } })
+
+    restoreState(
+      { reactiveState, refState },
+      {
+        reactiveState: { type: 'reactive', value: { current: 5 } },
+        refState: { type: 'ref', value: { nested: { value: 6 } } },
+      },
+    )
+
+    expect(reactiveState.current).toBe(5)
+    expect(current.value).toBe(5)
+    expect(refState.value.nested.value).toBe(6)
+  })
+
+  it('characterizes non-composable return shapes as non-hydratable', () => {
+    expect(snapshotState(ref(1))).toEqual({})
+    expect(snapshotState(reactive({ count: 1 }))).toEqual({})
+    expect(snapshotState(() => undefined)).toEqual({})
   })
 
   it('ignores malformed or incompatible snapshot entries', () => {
