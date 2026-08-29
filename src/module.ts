@@ -1,5 +1,5 @@
 import { resolve } from 'node:path'
-import { addImports, addImportsDir, createResolver, defineNuxtModule } from '@nuxt/kit'
+import { addImports, addImportsDir, addPlugin, createResolver, defineNuxtModule } from '@nuxt/kit'
 
 export type ModuleOptions = Record<string, never>
 
@@ -25,6 +25,8 @@ export default defineNuxtModule<ModuleOptions>({
       source: defineStateSource,
       argumentLength: 2,
     })
+
+    addPlugin(resolver.resolve('./runtime/app/plugins/hydration'))
 
     // Unimport scans a plain directory at one level. The glob keeps Nuxt Kit's
     // official scanner while matching the recursive behavior of composables.
