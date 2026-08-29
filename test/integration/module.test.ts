@@ -40,4 +40,18 @@ describe('nuxt-state module', async () => {
     expect(html).toContain('<output id="user-name">Server User</output>')
     expect(html).toContain('__nuxt_state__')
   })
+
+  it('keeps useFetch state isolated between concurrent SSR requests', async () => {
+    const [first, second] = await Promise.all([
+      $fetch<string>('/remote?marker=request-a'),
+      $fetch<string>('/remote?marker=request-b'),
+    ])
+
+    expect(first).toContain('<output id="remote-primary-marker">request-a</output>')
+    expect(first).toContain('<output id="remote-secondary-marker">request-a</output>')
+    expect(first).not.toContain('<output id="remote-primary-marker">request-b</output>')
+    expect(second).toContain('<output id="remote-primary-marker">request-b</output>')
+    expect(second).toContain('<output id="remote-secondary-marker">request-b</output>')
+    expect(second).not.toContain('<output id="remote-primary-marker">request-a</output>')
+  })
 })

@@ -42,4 +42,48 @@ describe('browser hydration', async () => {
 
     await page.close()
   })
+
+  it('coexists with useFetch hydration across multiple consumers', async () => {
+    const page = await createPage()
+    const browserMessages: string[] = []
+    const apiRequests: string[] = []
+
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') {
+        browserMessages.push(message.text())
+      }
+    })
+    page.on('pageerror', (error) => browserMessages.push(error.message))
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === '/api/example') apiRequests.push(request.url())
+    })
+
+    await page.goto(url('/remote?marker=browser'), { waitUntil: 'hydration' })
+
+    await expect(page.locator('#remote-primary-marker').textContent()).resolves.toBe('browser')
+    await expect(page.locator('#remote-secondary-marker').textContent()).resolves.toBe('browser')
+    await expect(page.locator('#remote-primary-status').textContent()).resolves.toBe('success')
+    await expect(page.locator('#remote-primary-has-data').textContent()).resolves.toBe('true')
+    expect(apiRequests).toHaveLength(0)
+
+    const initialRequestId = await page.locator('#remote-primary-request').textContent()
+    expect(await page.locator('#remote-secondary-request').textContent()).toBe(initialRequestId)
+
+    const response = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === '/api/example',
+    )
+    await page.locator('#remote-refresh').click()
+    await response
+
+    await expect
+      .poll(() => page.locator('#remote-primary-request').textContent())
+      .not.toBe(initialRequestId)
+    expect(await page.locator('#remote-secondary-request').textContent()).toBe(
+      await page.locator('#remote-primary-request').textContent(),
+    )
+    expect(apiRequests).toHaveLength(1)
+    expect(browserMessages.filter((message) => /hydration|mismatch/i.test(message))).toEqual([])
+
+    await page.close()
+  })
 })
