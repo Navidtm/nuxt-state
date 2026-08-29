@@ -1,7 +1,7 @@
 # Architecture
 
-This document describes the released prototype baseline and the Nuxt 4.5.2 APIs selected
-for the v0.1.0 hydration implementation.
+This document describes the inspected prototype baseline and the Nuxt 4.5.2 architecture
+implemented for v0.1.0 SSR hydration.
 
 ## Baseline
 
@@ -21,9 +21,9 @@ state instead of preserving it.
 The pre-hydration baseline passed install consistency, formatting, lint, type checking,
 8 unit/integration tests, the module build, and the production playground build. The
 published runtime output was approximately 1.02 kB and the complete module output was
-approximately 2.13 kB. The playground build emitted one pre-existing duplicate-import
-warning because it deliberately contains both a regular `useCounter` composable and a
-state with the same export name.
+approximately 2.13 kB. The playground had one unused regular composable with the same
+`useCounter` export as a state; it was removed while preparing v0.1.0 so production builds
+have no duplicate auto-import warning.
 
 ## Nuxt 4.5.2 research
 
@@ -100,7 +100,7 @@ runtime plugin can therefore register hydration early enough for component setup
 the server snapshot. On the server, collecting at `app:rendered` captures mutations made
 during rendering rather than the factory's initial values.
 
-The module will use one internal payload property:
+The module uses one internal payload property:
 
 ```text
 nuxtApp.payload.__nuxt_state__
@@ -110,7 +110,7 @@ Nuxt 4.5.2's `NuxtPayload` has a string index signature, so a typed `useHydratio
 use this custom property without replacing or augmenting `payload.state`, which belongs to
 Nuxt's `useState` implementation.
 
-## Selected v0.1.0 design
+## Implemented v0.1.0 design
 
 The existing wrapper-local weak map remains the instance owner. Hydration is layered on
 top through a second internal `WeakMap<NuxtApp, Registry>`:
@@ -153,9 +153,45 @@ reset behavior.
 If no compiler key is supplied, the closure-local weak map still provides all v0 behavior.
 Only cross-runtime hydration is unavailable; no unstable fallback key is generated.
 
-## Open verification items
+## Lifecycle and isolation details
 
-Implementation commits must prove:
+The server plugin registers snapshot collection before application rendering, but the
+snapshot functions are evaluated only at `app:rendered`. Registry entries contain callbacks,
+not eagerly captured values, so mutations made during page or component SSR are included.
+
+The client plugin receives the module payload on `app:created`, before component setup and Vue
+mounting. Snapshots for lazy states remain pending. The first invocation creates the normal
+client runtime object, registers it, restores matching mutable members synchronously, consumes
+the pending snapshot, and only then returns the state to component setup.
+
+Both the wrapper instance cache and hydration registry use `NuxtApp` as a weak key. Each SSR
+request therefore has separate instances, active entries, and pending snapshots. There is no
+process-global map containing application state. A newly evaluated wrapper has a new local weak
+map; because client hydration entries are consumed once, HMR does not replay the original SSR
+snapshot into that new wrapper.
+
+Reactive restoration mutates existing proxy roots. Arrays are spliced, plain nested objects are
+deep-patched, and stale object properties are removed. Ref restoration assigns `.value`.
+Consequently, closures and computed refs keep their original client-side dependencies and proxy
+identity.
+
+## Nuxt data composables
+
+The hydration layer does not read, replace, or write `nuxtApp.payload.data` or
+`nuxtApp.payload.state`. Nuxt therefore retains ownership of `useFetch()` request keys,
+deduplication, payload reuse, `status`, and `refresh()`. A real-browser regression fixture proves
+that SSR data is reused without a browser fetch during hydration and that a later refresh makes
+exactly one request and updates multiple consumers.
+
+The snapshot scanner uses only public Vue introspection. Some Nuxt `AsyncData` members are refs;
+if they appear as mutable top-level state they can also be represented in the module's internal
+snapshot. This does not initiate, cache, or replace a request: Nuxt's own payload remains the
+authority for data fetching, and the regression suite verifies that coexistence. Writable
+computed and advanced reactivity primitives are deliberately not official v0.1.0 guarantees.
+
+## Verified behavior
+
+The automated suite proves:
 
 - actual key injection for the module auto-import and distinct keys for two call sites;
 - built-in Nuxt keyed-composable entries remain present;
@@ -163,6 +199,21 @@ Implementation commits must prove:
 - computed values and functions remain connected to restored state;
 - concurrent SSR request payloads remain isolated;
 - `useFetch` retains its own Nuxt payload behavior and does not refetch on hydration;
-- production and development transforms both inject stable server/client keys;
+- production and development browser hydration both receive matching server/client keys;
 - built declarations expose one public argument even though runtime JavaScript accepts the
   compiler-only key.
+
+A production-output inspection additionally confirmed that two calls in one state source receive
+distinct Nuxt-generated hashes. The exact hashes are not asserted because their spelling is a
+Nuxt implementation detail.
+
+## Deliberate limitations
+
+- The primary supported import path is the module auto-import. Nuxt's native keyed-composable
+  compiler compares resolved sources exactly and does not follow barrel re-exports.
+- Missing compiler keys preserve v0 sharing and request isolation but cannot provide hydration;
+  random IDs, counters, and stack-derived fallbacks are intentionally avoided.
+- Payload values must be serializable by Nuxt. The module does not add a serializer or persistence
+  format.
+- Only standard `ref()` and `reactive()` hydration is promised in v0.1.0. Readonly computed refs
+  and functions are recreated, not snapshotted.

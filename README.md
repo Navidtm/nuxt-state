@@ -15,8 +15,8 @@ A regular composable runs its factory for every invocation. A composable created
 `defineState` runs its factory lazily, once for the current Nuxt application instance,
 and returns that exact result to every caller in that app.
 
-This is a working prototype for discussion and possible future contribution to Nuxt.
-It is not yet presented as production-ready.
+This is a working open-source prototype for discussion and possible future contribution to
+Nuxt. The API is intentionally narrow and the project is not yet presented as production-ready.
 
 ## Why
 
@@ -40,9 +40,6 @@ export default defineNuxtConfig({
   modules: ['nuxt-state'],
 })
 ```
-
-The package has not been published yet; during development, use this repository as a
-workspace dependency.
 
 ## Usage
 
@@ -97,35 +94,67 @@ refs remain computed refs, reactive objects remain reactive, and functions are u
   allowing old application instances to be garbage-collected.
 - Separate `defineState()` calls have separate closure-owned caches, including calls in
   the same file.
+- Mutable state used during SSR is restored into the client-created refs and reactive proxies
+  before Vue hydrates the component tree.
 
 Async factories are rejected by TypeScript and guarded at runtime for JavaScript users.
 Expose an async function from synchronous state or use Nuxt's data-fetching APIs instead.
 
-## SSR scope
+## SSR hydration
 
-v0 guarantees isolation between SSR requests: module-level state does not become a
-process-wide user-state singleton. This is intentionally different from hydration.
+v0.1.0 transparently hydrates mutable top-level members returned by the factory when they are
+created with `ref()` or `reactive()`. Nuxt injects an internal call-site key at build time; the
+developer-facing call remains exactly `defineState(factory)`.
 
-v0 does **not** serialize or hydrate arbitrary factory results. A result may contain
-functions, computed refs, class instances, and other runtime-only values. If a state is
-mutated during SSR, the client may recreate the factory's initial state during hydration.
-Do not rely on server mutations transferring to the client yet.
+On the server, the module captures the final values after rendering in one namespaced Nuxt
+payload entry. On the client, it runs the factory normally and patches those values into the
+new refs and reactive proxies before Vue hydration. The returned object is never replaced, so
+computed refs, functions, watchers, and closures created by the client factory remain wired to
+the hydrated state.
+
+```ts
+export const useAccount = defineState(() => {
+  const count = ref(0)
+  const user = reactive({ name: 'Guest', roles: [] as string[] })
+  const double = computed(() => count.value * 2)
+  const increment = () => count.value++
+
+  return { count, user, double, increment }
+})
+```
+
+Nested serializable values inside supported refs and reactive objects are handled by Nuxt's
+payload serializer. Functions, readonly computed refs, and plain runtime objects are recreated
+by the factory rather than serialized. Concurrent SSR requests retain separate Nuxt-app
+registries and cannot share user state.
+
+`useFetch()` can remain inside a synchronous state factory. Its request caching and payload
+hydration still belong to Nuxt; `nuxt-state` neither replaces nor triggers a second fetch
+mechanism. If multiple sibling SSR components must all render completed data, await the returned
+Nuxt `AsyncData` promise in a parent/page as you would with normal Nuxt data fetching.
 
 ## Current limitations
 
 - Nuxt 4 and Vue 3 only.
 - Synchronous factories only.
 - No persistence or browser-storage integration.
-- No arbitrary-state payload serialization or hydration yet.
+- Hydration is guaranteed for standard `ref()` and `reactive()` members only. Advanced
+  primitives such as shallow/custom refs and writable-computed edge cases are not v0.1.0
+  guarantees.
+- Hydrated values must be serializable by Nuxt's payload system; DOM nodes, sockets, functions
+  inside refs, symbols, and arbitrary native/class resources are unsupported.
 - No Nuxt Layers support yet.
 - State resets when its module is hot-reloaded; HMR preservation is not implemented.
 - Compatibility with every context-sensitive Nuxt composable inside a factory is not
   guaranteed yet.
 - There is no reset API, keyed/multi-instance state, DevTools integration, or central
-  registry.
+  user-facing registry.
+- The keyed transform is source-sensitive. The supported path is the module's auto-imported
+  `defineState`; a barrel re-export or unrelated manual wrapper is not guaranteed to receive an
+  internal hydration key.
 
-See [ROADMAP.md](./ROADMAP.md) for the technical questions behind future hydration and
-context compatibility.
+See [the architecture notes](./docs/architecture.md) and [roadmap](./docs/roadmap.md) for
+implementation constraints and deferred work.
 
 ## Development
 
@@ -134,6 +163,7 @@ Requires Node.js 22+ and pnpm.
 ```bash
 pnpm install
 pnpm dev
+pnpm fmt:check
 pnpm lint
 pnpm test:types
 pnpm test
@@ -141,8 +171,9 @@ pnpm prepack
 pnpm dev:build
 ```
 
-The playground contains two counter components, a reactive object example, a nested
-state, and two independent states exported from one file.
+The browser suite requires Chromium, installed with
+`pnpm exec playwright-core install chromium`. The playground contains two counter components,
+a reactive object example, a nested state, and two independent states exported from one file.
 
 ## License
 

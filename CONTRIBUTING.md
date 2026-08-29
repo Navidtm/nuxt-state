@@ -15,6 +15,7 @@ Use Node.js 22+ and pnpm:
 
 ```bash
 pnpm install
+pnpm fmt:check
 pnpm dev
 ```
 
@@ -28,8 +29,9 @@ pnpm prepack
 pnpm dev:build
 ```
 
-Tests should distinguish per-request safety from server-to-client hydration. New runtime
-behavior should include unit coverage, while Nuxt integration behavior should use a fixture
-through `@nuxt/test-utils`.
+The full test command includes real Chromium hydration coverage. Install its browser locally
+with `pnpm exec playwright-core install chromium` if needed. Tests should distinguish
+per-request safety from server-to-client hydration. New runtime behavior should include unit
+coverage, while Nuxt integration behavior should use a fixture through `@nuxt/test-utils`.
 
 Please explain behavioral changes and update the README or roadmap where appropriate.

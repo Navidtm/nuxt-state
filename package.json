@@ -1,6 +1,6 @@
 {
   "name": "nuxt-state",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "Define shared Nuxt state using the same Composition API you already use in composables.",
   "keywords": [
     "composable",
@@ -53,7 +53,8 @@
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "test": "vitest run",
-    "check": "pnpm run fmt && pnpm run lint",
+    "test:browser": "vitest run test/browser",
+    "check": "pnpm run fmt:check && pnpm run lint",
     "test:watch": "vitest",
     "test:types": "nuxt-module-build build && vue-tsc --noEmit && pnpm --dir playground exec vue-tsc --noEmit"
   },

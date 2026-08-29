@@ -2,7 +2,7 @@
 
 ## v0.1.0: basic SSR hydration
 
-In progress:
+Complete:
 
 - stable internal identities through Nuxt's keyed-composable transform;
 - one internal namespaced Nuxt payload entry;
@@ -11,7 +11,8 @@ In progress:
 - browser coverage for hydration timing and mismatch detection;
 - `useFetch` coexistence and request-isolation regression coverage.
 
-This milestone does not change the public `defineState(factory)` API.
+The milestone keeps the public `defineState(factory)` API unchanged and ships the payload
+format as an internal implementation detail.
 
 ## Later investigation
 
