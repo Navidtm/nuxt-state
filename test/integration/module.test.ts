@@ -26,7 +26,18 @@ describe('nuxt-state module', async () => {
 
     expect(first).toContain('data-before data-after="first"')
     expect(first).toContain('data-after="first"')
+    expect(first).not.toContain('data-after="second"')
     expect(second).toContain('data-before data-after="second"')
     expect(second).toContain('data-after="second"')
+    expect(second).not.toContain('data-after="first"')
+  })
+
+  it('serializes final SSR mutations in one namespaced payload', async () => {
+    const html = await $fetch<string>('/hydration')
+
+    expect(html).toContain('<output id="count">41</output>')
+    expect(html).toContain('<output id="double">82</output>')
+    expect(html).toContain('<output id="user-name">Server User</output>')
+    expect(html).toContain('__nuxt_state__')
   })
 })
