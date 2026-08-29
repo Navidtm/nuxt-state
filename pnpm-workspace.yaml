@@ -7,3 +7,6 @@ strictPeerDependencies: false
 allowBuilds:
   esbuild: true
   unrs-resolver: true
+
+minimumReleaseAgeExclude:
+  - nuxt-state@0.0.1

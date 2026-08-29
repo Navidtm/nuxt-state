@@ -4,9 +4,10 @@ type NotPromise<T> = T extends PromiseLike<unknown> ? never : unknown
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
   return (
-    (typeof value === 'object' && value !== null)
-    || typeof value === 'function'
-  ) && 'then' in value && typeof value.then === 'function'
+    ((typeof value === 'object' && value !== null) || typeof value === 'function') &&
+    'then' in value &&
+    typeof value.then === 'function'
+  )
 }
 
 /**
@@ -26,8 +27,8 @@ export function defineState<T>(factory: () => T & NotPromise<T>): () => T {
 
     if (isPromiseLike(instance)) {
       throw new TypeError(
-        '[nuxt-state] State factories must be synchronous. '
-        + 'Expose an async function from the state or use Nuxt data-fetching composables instead.',
+        '[nuxt-state] State factories must be synchronous. ' +
+          'Expose an async function from the state or use Nuxt data-fetching composables instead.',
       )
     }
 

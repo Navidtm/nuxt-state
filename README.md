@@ -7,10 +7,8 @@
 ```ts
 defineState(() => {
   // standard Vue Composition API
-  return {
-    /* public state */
-  };
-});
+  return {/* public state */}
+})
 ```
 
 A regular composable runs its factory for every invocation. A composable created by
@@ -39,8 +37,8 @@ pnpm add nuxt-state
 ```ts
 // nuxt.config.ts
 export default defineNuxtConfig({
-  modules: ["nuxt-state"],
-});
+  modules: ['nuxt-state'],
+})
 ```
 
 The package has not been published yet; during development, use this repository as a
@@ -53,19 +51,19 @@ Create a state in Nuxt 4's application source directory:
 ```ts
 // app/states/counter.ts
 export const useCounter = defineState(() => {
-  const count = ref(0);
-  const double = computed(() => count.value * 2);
+  const count = ref(0)
+  const double = computed(() => count.value * 2)
 
   function increment() {
-    count.value++;
+    count.value++
   }
 
   return {
     count,
     double,
     increment,
-  };
-});
+  }
+})
 ```
 
 Exports from `app/states/`, including nested directories and multiple exports per file,
@@ -74,11 +72,11 @@ as in `app/composables/`.
 
 ```vue
 <script setup lang="ts">
-const { count, double, increment } = useCounter();
+const { count, double, increment } = useCounter()
 
-count.value++;
-increment();
-console.log(double.value);
+count.value++
+increment()
+console.log(double.value)
 </script>
 ```
 

@@ -3,29 +3,29 @@
   "version": "0.0.1",
   "description": "Define shared Nuxt state using the same Composition API you already use in composables.",
   "keywords": [
+    "composable",
     "nuxt",
     "nuxt-module",
-    "vue",
     "state",
-    "composable"
+    "vue"
   ],
-  "license": "MIT",
-  "author": "Navid Talebian",
-  "type": "module",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/navidtm/nuxt-state.git"
-  },
   "homepage": "https://github.com/navidtm/nuxt-state#readme",
   "bugs": {
     "url": "https://github.com/navidtm/nuxt-state/issues"
   },
-  "exports": {
-    ".": {
-      "types": "./dist/types.d.mts",
-      "import": "./dist/module.mjs"
-    }
+  "license": "MIT",
+  "author": "Navid Talebian",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/navidtm/nuxt-state.git"
   },
+  "workspaces": [
+    "playground"
+  ],
+  "files": [
+    "dist"
+  ],
+  "type": "module",
   "main": "./dist/module.mjs",
   "typesVersions": {
     "*": {
@@ -34,34 +34,31 @@
       ]
     }
   },
-  "files": [
-    "dist"
-  ],
-  "workspaces": [
-    "playground"
-  ],
+  "exports": {
+    ".": {
+      "types": "./dist/types.d.mts",
+      "import": "./dist/module.mjs"
+    }
+  },
   "publishConfig": {
     "access": "public"
   },
-  "engines": {
-    "node": ">=22"
-  },
-  "packageManager": "pnpm@11.17.0",
   "scripts": {
     "prepack": "nuxt-module-build build",
     "dev": "pnpm dev:prepare && nuxt dev playground",
     "dev:build": "nuxt build playground",
     "dev:prepare": "nuxt-module-build build --stub && nuxt-module-build prepare && nuxt prepare playground",
-    "lint": "eslint .",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
     "test": "vitest run",
+    "check": "pnpm run fmt && pnpm run lint",
     "test:watch": "vitest",
     "test:types": "vue-tsc --noEmit && pnpm --dir playground exec vue-tsc --noEmit"
   },
   "dependencies": {
     "@nuxt/kit": "^4.5.2"
-  },
-  "peerDependencies": {
-    "nuxt": "^4.0.0"
   },
   "devDependencies": {
     "@nuxt/devtools": "^3.4.2",
@@ -71,12 +68,20 @@
     "@nuxt/test-utils": "^4.1.0",
     "@types/node": "latest",
     "changelogen": "^0.6.2",
-    "eslint": "^10.9.0",
     "happy-dom": "^20.8.3",
     "nuxt": "^4.5.2",
+    "oxfmt": "^0.65.0",
+    "oxlint": "^1.80.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11",
     "vue": "^3.5.31",
     "vue-tsc": "^3.3.11"
-  }
+  },
+  "peerDependencies": {
+    "nuxt": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.17.0"
 }

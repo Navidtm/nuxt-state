@@ -6,7 +6,7 @@ const state = useRequestProbe()
 const before = state.marker.value
 
 state.marker.value = marker
-await new Promise(resolve => setTimeout(resolve, delay))
+await new Promise((resolve) => setTimeout(resolve, delay))
 const after = state.marker.value
 </script>
 

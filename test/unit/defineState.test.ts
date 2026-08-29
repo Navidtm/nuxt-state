@@ -76,8 +76,6 @@ describe('defineState', () => {
   it('rejects async factories at runtime for JavaScript callers', async () => {
     const useAsyncState = defineState((async () => ({ value: 1 })) as never)
 
-    expect(() => useAsyncState()).toThrowError(
-      '[nuxt-state] State factories must be synchronous.',
-    )
+    expect(() => useAsyncState()).toThrowError('[nuxt-state] State factories must be synchronous.')
   })
 })

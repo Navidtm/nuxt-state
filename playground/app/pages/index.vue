@@ -8,13 +8,11 @@ const { locale } = useLocale()
   <main :class="{ dark: darkMode }">
     <div class="shell">
       <header>
-        <p class="kicker">
-          nuxt-state / experimental prototype
-        </p>
-        <h1>One factory.<br><em>One Nuxt app.</em></h1>
+        <p class="kicker">nuxt-state / experimental prototype</p>
+        <h1>One factory.<br /><em>One Nuxt app.</em></h1>
         <p class="lede">
-          The two counter cards call the same zero-argument composable. Their
-          refs retain normal Vue semantics while sharing exact state identity.
+          The two counter cards call the same zero-argument composable. Their refs retain normal Vue
+          semantics while sharing exact state identity.
         </p>
       </header>
 
@@ -47,7 +45,7 @@ const { locale } = useLocale()
         </div>
         <div>
           <span class="eyebrow">Plain ref</span>
-          <strong>Theme: {{ darkMode ? "dark" : "light" }}</strong>
+          <strong>Theme: {{ darkMode ? 'dark' : 'light' }}</strong>
           <button
             type="button"
             @click="darkMode = !darkMode"
@@ -81,12 +79,7 @@ main {
   min-height: 100vh;
   padding: 64px 24px;
   background:
-    radial-gradient(
-      circle at 90% 10%,
-      rgba(51, 209, 122, 0.22),
-      transparent 30%
-    ),
-    #edf2ee;
+    radial-gradient(circle at 90% 10%, rgba(51, 209, 122, 0.22), transparent 30%), #edf2ee;
   transition:
     color 0.2s,
     background 0.2s;

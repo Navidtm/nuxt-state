@@ -1,10 +1,5 @@
 import { resolve } from 'node:path'
-import {
-  addImports,
-  addImportsDir,
-  createResolver,
-  defineNuxtModule,
-} from '@nuxt/kit'
+import { addImports, addImportsDir, createResolver, defineNuxtModule } from '@nuxt/kit'
 
 export type ModuleOptions = Record<string, never>
 

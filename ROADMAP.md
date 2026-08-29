@@ -59,4 +59,3 @@ navigation, and calls after an awaited boundary. v0 makes no blanket compatibili
 - Nuxt Layers and how multiple application source directories contribute states.
 - Optional HMR state preservation without changing the public API.
 - DevTools visibility, only if it can stay observational rather than introducing a store DSL.
-

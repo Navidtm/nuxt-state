@@ -7,7 +7,7 @@ const useCounter = defineState(() => {
   const double = computed(() => count.value * 2)
 
   function increment(amount: number): number {
-    return count.value += amount
+    return (count.value += amount)
   }
 
   return { count, double, increment }

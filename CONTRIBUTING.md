@@ -33,4 +33,3 @@ behavior should include unit coverage, while Nuxt integration behavior should us
 through `@nuxt/test-utils`.
 
 Please explain behavioral changes and update the README or roadmap where appropriate.
-

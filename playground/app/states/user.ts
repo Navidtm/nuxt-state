@@ -4,7 +4,7 @@ export const useUser = defineState(() => {
     authenticated: false,
   })
 
-  const label = computed(() => user.authenticated ? user.name : 'Guest')
+  const label = computed(() => (user.authenticated ? user.name : 'Guest'))
 
   function login() {
     user.name = 'Nuxt User'
