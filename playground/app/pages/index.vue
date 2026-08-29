@@ -1,15 +1,17 @@
 <script setup lang="ts">
-const { status, startSession } = useSession();
-const { darkMode } = usePreferences();
-const { locale } = useLocale();
+const { status, startSession } = useSession()
+const { darkMode } = usePreferences()
+const { locale } = useLocale()
 </script>
 
 <template>
   <main :class="{ dark: darkMode }">
     <div class="shell">
       <header>
-        <p class="kicker">nuxt-state / experimental prototype</p>
-        <h1>One factory.<br /><em>One Nuxt app.</em></h1>
+        <p class="kicker">
+          nuxt-state / experimental prototype
+        </p>
+        <h1>One factory.<br><em>One Nuxt app.</em></h1>
         <p class="lede">
           The two counter cards call the same zero-argument composable. Their
           refs retain normal Vue semantics while sharing exact state identity.
@@ -26,19 +28,30 @@ const { locale } = useLocale();
         <div>
           <span class="eyebrow">Nested auto-import</span>
           <strong>Session: {{ status }}</strong>
-          <button type="button" @click="startSession">Start session</button>
+          <button
+            type="button"
+            @click="startSession"
+          >
+            Start session
+          </button>
         </div>
         <div>
           <span class="eyebrow">Two states, one file</span>
           <strong>Locale: {{ locale }}</strong>
-          <button type="button" @click="locale = locale === 'en' ? 'fr' : 'en'">
+          <button
+            type="button"
+            @click="locale = locale === 'en' ? 'fr' : 'en'"
+          >
             Toggle locale
           </button>
         </div>
         <div>
           <span class="eyebrow">Plain ref</span>
           <strong>Theme: {{ darkMode ? "dark" : "light" }}</strong>
-          <button type="button" @click="darkMode = !darkMode">
+          <button
+            type="button"
+            @click="darkMode = !darkMode"
+          >
             Toggle theme
           </button>
         </div>
