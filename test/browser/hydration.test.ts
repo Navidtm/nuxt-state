@@ -109,4 +109,36 @@ describe('browser hydration', async () => {
 
     await page.close()
   })
+
+  it('hydrates shallow refs and reactives without making them deep', async () => {
+    const page = await createPage()
+    const browserMessages: string[] = []
+
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') {
+        browserMessages.push(message.text())
+      }
+    })
+    page.on('pageerror', (error) => browserMessages.push(error.message))
+
+    await page.goto(url('/shallow'), { waitUntil: 'hydration' })
+
+    await expect(page.locator('#catalog-version').textContent()).resolves.toBe('2')
+    await expect(page.locator('#catalog-name').textContent()).resolves.toBe('Server')
+    await expect(page.locator('#session-user').textContent()).resolves.toBe('Server User')
+    await expect(page.locator('#metadata-version').textContent()).resolves.toBe('2')
+    await expect(page.locator('#catalog-deep').textContent()).resolves.toBe('false')
+    await expect(page.locator('#session-deep').textContent()).resolves.toBe('false')
+
+    await page.locator('#mutate-shallow').click()
+    await expect(page.locator('#catalog-version').textContent()).resolves.toBe('2')
+    await expect(page.locator('#metadata-version').textContent()).resolves.toBe('2')
+
+    await page.locator('#replace-shallow').click()
+    await expect(page.locator('#catalog-version').textContent()).resolves.toBe('4')
+    await expect(page.locator('#metadata-version').textContent()).resolves.toBe('4')
+    expect(browserMessages.filter((message) => /hydration|mismatch/i.test(message))).toEqual([])
+
+    await page.close()
+  })
 })

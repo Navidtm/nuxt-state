@@ -1,4 +1,4 @@
-import { computed, reactive, readonly, ref } from 'vue'
+import { computed, isReactive, reactive, readonly, ref, shallowReactive, shallowRef } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { restoreState, snapshotState } from '../../src/runtime/app/state-snapshot'
 
@@ -101,6 +101,51 @@ describe('state snapshots', () => {
       { id: 1, name: 'A' },
       { id: 2, name: 'B' },
     ])
+  })
+
+  it('restores shallowRef values without introducing deep reactivity', () => {
+    const catalog = shallowRef({ version: 1, items: [{ id: 1, name: 'Initial' }] })
+    const originalRef = catalog
+
+    restoreState(
+      { catalog },
+      {
+        catalog: {
+          type: 'ref',
+          value: { version: 2, items: [{ id: 2, name: 'Server' }] },
+        },
+      },
+    )
+
+    expect(catalog).toBe(originalRef)
+    expect(catalog.value).toEqual({ version: 2, items: [{ id: 2, name: 'Server' }] })
+    expect(isReactive(catalog.value)).toBe(false)
+    expect(isReactive(catalog.value.items)).toBe(false)
+  })
+
+  it('patches shallowReactive roots without making nested objects reactive', () => {
+    const state = shallowReactive({
+      user: null as null | string,
+      metadata: { version: 1, obsolete: true },
+    })
+    const originalProxy = state
+    const originalMetadata = state.metadata
+
+    restoreState(
+      { state },
+      {
+        state: {
+          type: 'reactive',
+          value: { user: 'Server User', metadata: { version: 2 } },
+        },
+      },
+    )
+
+    expect(state).toBe(originalProxy)
+    expect(state.metadata).toBe(originalMetadata)
+    expect(state).toEqual({ user: 'Server User', metadata: { version: 2 } })
+    expect(isReactive(state)).toBe(true)
+    expect(isReactive(state.metadata)).toBe(false)
   })
 
   it('deeply patches reactive state while preserving existing object identities', () => {

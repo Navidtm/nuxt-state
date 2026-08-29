@@ -87,4 +87,14 @@ describe('nuxt-state module', async () => {
     expect(payloadOverhead).toBeLessThan(128)
     expect(htmlOverhead).toBeLessThan(256)
   })
+
+  it('renders final shallow state into SSR HTML and hydration payload', async () => {
+    const html = await $fetch<string>('/shallow')
+
+    expect(html).toContain('<output id="catalog-version">2</output>')
+    expect(html).toContain('<output id="session-user">Server User</output>')
+    expect(html).toContain('<output id="catalog-deep">false</output>')
+    expect(html).toContain('<output id="session-deep">false</output>')
+    expect(html).toContain('__nuxt_state__')
+  })
 })
