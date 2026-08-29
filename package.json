@@ -77,9 +77,6 @@
     "vue": "^3.5.31",
     "vue-tsc": "^3.3.11"
   },
-  "peerDependencies": {
-    "nuxt": "^4.0.0"
-  },
   "engines": {
     "node": ">=22"
   },
