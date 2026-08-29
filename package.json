@@ -1,6 +1,6 @@
 {
-  "name": "nuxt-define-state",
-  "version": "0.0.0",
+  "name": "nuxt-state",
+  "version": "0.0.1",
   "description": "Define shared Nuxt state using the same Composition API you already use in composables.",
   "keywords": [
     "nuxt",
@@ -14,11 +14,11 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-org/nuxt-define-state.git"
+    "url": "git+https://github.com/navidtm/nuxt-state.git"
   },
-  "homepage": "https://github.com/your-org/nuxt-define-state#readme",
+  "homepage": "https://github.com/navidtm/nuxt-state#readme",
   "bugs": {
-    "url": "https://github.com/your-org/nuxt-define-state/issues"
+    "url": "https://github.com/navidtm/nuxt-state/issues"
   },
   "exports": {
     ".": {
@@ -80,4 +80,3 @@
     "vue-tsc": "^3.3.11"
   }
 }
-

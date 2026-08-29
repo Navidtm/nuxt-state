@@ -26,7 +26,7 @@ export function defineState<T>(factory: () => T & NotPromise<T>): () => T {
 
     if (isPromiseLike(instance)) {
       throw new TypeError(
-        '[nuxt-define-state] State factories must be synchronous. '
+        '[nuxt-state] State factories must be synchronous. '
         + 'Expose an async function from the state or use Nuxt data-fetching composables instead.',
       )
     }

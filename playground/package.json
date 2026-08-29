@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "nuxt-define-state-playground",
+  "name": "nuxt-state-playground",
   "type": "module",
   "scripts": {
     "dev": "nuxt dev",
@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "nuxt": "^4.5.2",
-    "nuxt-define-state": "workspace:*"
+    "nuxt-state": "workspace:*"
   }
 }
-

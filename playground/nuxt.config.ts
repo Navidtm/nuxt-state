@@ -1,5 +1,5 @@
 export default defineNuxtConfig({
-  modules: ['nuxt-define-state'],
+  modules: ["nuxt-state"],
   devtools: { enabled: true },
-  compatibilityDate: '2026-08-29',
-})
+  compatibilityDate: "2026-08-29",
+});
