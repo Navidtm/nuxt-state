@@ -58,6 +58,7 @@ describe('state hydration registry', () => {
     const nuxtApp = {}
     const firstRestore = vi.fn()
     const hotRestore = vi.fn()
+    const firstDispose = vi.fn()
 
     receiveStateSnapshots(nuxtApp, {
       $counter: { count: 41 },
@@ -65,6 +66,7 @@ describe('state hydration registry', () => {
     registerHydratableState(nuxtApp, '$counter', {
       snapshot: vi.fn(),
       restore: firstRestore,
+      dispose: firstDispose,
     })
     registerHydratableState(nuxtApp, '$counter', {
       snapshot: vi.fn(),
@@ -73,5 +75,6 @@ describe('state hydration registry', () => {
 
     expect(firstRestore).toHaveBeenCalledOnce()
     expect(hotRestore).not.toHaveBeenCalled()
+    expect(firstDispose).toHaveBeenCalledOnce()
   })
 })

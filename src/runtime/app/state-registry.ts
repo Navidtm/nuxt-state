@@ -3,6 +3,7 @@ export type StateHydrationPayload = Record<string, unknown>
 export interface HydratableStateEntry {
   snapshot: () => unknown
   restore: (snapshot: unknown) => void
+  dispose?: () => void
 }
 
 interface StateRegistry {
@@ -32,6 +33,7 @@ export function registerHydratableState(
   entry: HydratableStateEntry,
 ): void {
   const registry = getStateRegistry(nuxtApp)
+  registry.active.get(key)?.dispose?.()
   registry.active.set(key, entry)
 
   if (registry.hydration.has(key)) {

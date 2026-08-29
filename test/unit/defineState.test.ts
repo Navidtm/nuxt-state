@@ -1,4 +1,4 @@
-import { computed, reactive, ref } from 'vue'
+import { computed, getCurrentScope, reactive, ref, watchEffect } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineState } from '../../src/runtime/app/composables/defineState'
 import { collectStateSnapshots, receiveStateSnapshots } from '../../src/runtime/app/state-registry'
@@ -27,6 +27,22 @@ describe('defineState', () => {
     const useExample = defineState(() => ({ value: ref(0) }))
 
     expect(useExample()).toBe(useExample())
+  })
+
+  it('runs factories in an app-lived detached Vue effect scope', () => {
+    const source = ref(0)
+    const observed = vi.fn()
+    const useExample = defineState(() => {
+      const scope = getCurrentScope()
+      watchEffect(() => observed(source.value), { flush: 'sync' })
+      return { scope }
+    })
+
+    const state = useExample()
+    source.value++
+
+    expect(state.scope?.detached).toBe(true)
+    expect(observed).toHaveBeenLastCalledWith(1)
   })
 
   it('creates isolated objects for different Nuxt apps', () => {

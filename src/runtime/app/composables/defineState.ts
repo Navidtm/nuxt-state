@@ -1,4 +1,5 @@
 import { useNuxtApp } from '#app'
+import { effectScope } from 'vue'
 import { registerHydratableState } from '../state-registry'
 import { restoreState, snapshotState } from '../state-snapshot'
 
@@ -26,9 +27,18 @@ export function defineState<T>(factory: () => T & NotPromise<T>, internalKey?: s
       return instances.get(nuxtApp)!
     }
 
-    const instance = factory()
+    const scope = effectScope(true)
+    let instance: T
+
+    try {
+      instance = scope.run(factory)!
+    } catch (error) {
+      scope.stop()
+      throw error
+    }
 
     if (isPromiseLike(instance)) {
+      scope.stop()
       throw new TypeError(
         '[nuxt-state] State factories must be synchronous. ' +
           'Expose an async function from the state or use Nuxt data-fetching composables instead.',
@@ -37,10 +47,14 @@ export function defineState<T>(factory: () => T & NotPromise<T>, internalKey?: s
 
     instances.set(nuxtApp, instance)
 
+    const app = nuxtApp as { vueApp?: { onUnmount?: (cleanup: () => void) => void } }
+    app.vueApp?.onUnmount?.(() => scope.stop())
+
     if (internalKey) {
       registerHydratableState(nuxtApp, internalKey, {
         snapshot: () => snapshotState(instance),
         restore: (snapshot) => restoreState(instance, snapshot),
+        dispose: () => scope.stop(),
       })
     }
 
