@@ -29,6 +29,12 @@ pnpm prepack
 pnpm dev:build
 ```
 
+Before a release, also run the optional deterministic 200-request isolation stress test:
+
+```bash
+pnpm test:stress
+```
+
 The full test command includes real Chromium hydration coverage. Install its browser locally
 with `pnpm exec playwright-core install chromium` if needed. Tests should distinguish
 per-request safety from server-to-client hydration. New runtime behavior should include unit

@@ -90,6 +90,8 @@ refs remain computed refs, reactive objects remain reactive, and functions are u
 - The factory is lazy and runs at first use.
 - It runs once per Nuxt app instance.
 - The exact factory result is returned to all callers in that app.
+- The factory runs in a detached Vue effect scope owned by the Nuxt app, so effects and Nuxt
+  composables are not disposed with the first consuming component.
 - A module-local `WeakMap` keys instances by `NuxtApp`, providing request isolation while
   allowing old application instances to be garbage-collected.
 - Separate `defineState()` calls have separate closure-owned caches, including calls in
@@ -102,9 +104,9 @@ Expose an async function from synchronous state or use Nuxt's data-fetching APIs
 
 ## SSR hydration
 
-v0.1.0 transparently hydrates mutable top-level members returned by the factory when they are
-created with `ref()` or `reactive()`. Nuxt injects an internal call-site key at build time; the
-developer-facing call remains exactly `defineState(factory)`.
+Since v0.1.0, nuxt-state transparently hydrates mutable top-level members returned by the factory.
+Nuxt injects an internal call-site key at build time; the developer-facing call remains exactly
+`defineState(factory)`.
 
 On the server, the module captures the final values after rendering in one namespaced Nuxt
 payload entry. On the client, it runs the factory normally and patches those values into the
@@ -133,7 +135,7 @@ state that must survive SSR hydration currently needs to be exposed from the `de
 factory. A private ref captured only by a computed value or function is not visible to the
 snapshot layer; if it is mutated during SSR, its client value can differ and cause a hydration
 mismatch. Discovering closure-private Vue state would require a new explicit API, compiler-level
-analysis, or undocumented reactivity inspection, none of which belongs in v0.1.0.
+analysis, or undocumented reactivity inspection, none of which belongs in v0.2.0.
 
 `useFetch()` can remain inside a synchronous state factory. Its request caching and payload
 hydration still belong to Nuxt; `nuxt-state` neither replaces nor triggers a second fetch
@@ -145,22 +147,54 @@ state snapshot refer to it. Nuxt's graph serializer preserves the shared object 
 response body is emitted once rather than copied into the HTML twice. There is still a small
 snapshot-metadata overhead.
 
+## Compatibility
+
+### Supported
+
+- `ref()` and `reactive()`, including nested serializable objects and arrays;
+- `shallowRef()` and `shallowReactive()` with their shallow semantics preserved;
+- `Date`, `Map`, `Set`, shared references, and cyclic graphs supported by Nuxt's payload
+  serializer;
+- readonly computed chains and functions as client-recreated runtime state;
+- readonly views when their mutable source is also returned and hydrated;
+- `useFetch()`, `useAsyncData()`, `callOnce()`, `useCookie()`, `useRuntimeConfig()`, `useRoute()`,
+  and `useRouter()` in valid Nuxt contexts;
+- first use from plugins, route middleware, layouts, pages, and components;
+- state lifetime across client navigation and repeated component mount/unmount.
+
+`useFetch` and `useAsyncData` continue to own their request/payload behavior. nuxt-state's
+snapshot metadata points at the same payload graph rather than serializing response bodies again.
+`callOnce({ mode: 'navigation' })` retains Nuxt's normal per-navigation behavior.
+
+### Characterized or limited
+
+- A readonly view is not independent mutable state. If its mutable source is private, it follows
+  the private-state limitation below.
+- Writable computed refs are not supported hydration state. Vue exposes no public `isComputed`
+  check, and a writable computed currently looks like a mutable ref; restoring it invokes its
+  setter and may cause side effects. Return and hydrate its source refs instead.
+- Mutable reactive values that must survive SSR hydration need to be reachable through the
+  enumerable object returned from the factory.
+- The intended return is a composable-style object. Arbitrary ref, reactive-root, function, or
+  primitive returns still share per app, but the current member-based snapshot format does not
+  hydrate them.
+- Cycles are supported for Nuxt-serializable object graphs, not arbitrary native resources or
+  custom class instances.
+
 ## Current limitations
 
 - Nuxt 4 and Vue 3 only.
 - Synchronous factories only.
 - No persistence or browser-storage integration.
-- Hydration is guaranteed for standard `ref()` and `reactive()` members only. Advanced
-  primitives such as shallow/custom refs and writable-computed edge cases are not v0.1.0
-  guarantees.
+- Hydration is guaranteed for standard and shallow refs/reactives. `customRef()` and writable
+  computed hydration are not supported.
 - Hydrated values must be serializable by Nuxt's payload system; DOM nodes, sockets, functions
   inside refs, symbols, and arbitrary native/class resources are unsupported.
 - Closure-private mutable state is not discoverable; return any ref/reactive value whose SSR
   mutations must hydrate.
 - No Nuxt Layers support yet.
 - State resets when its module is hot-reloaded; HMR preservation is not implemented.
-- Compatibility with every context-sensitive Nuxt composable inside a factory is not
-  guaranteed yet.
+- Context-sensitive composables must still be called while normal Nuxt context is available.
 - There is no reset API, keyed/multi-instance state, DevTools integration, or central
   user-facing registry.
 - The keyed transform is source-sensitive. The supported path is the module's auto-imported
@@ -181,6 +215,7 @@ pnpm fmt:check
 pnpm lint
 pnpm test:types
 pnpm test
+pnpm test:stress
 pnpm prepack
 pnpm dev:build
 ```
