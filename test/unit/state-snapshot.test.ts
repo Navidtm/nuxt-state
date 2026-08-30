@@ -1,4 +1,15 @@
-import { computed, isReactive, reactive, readonly, ref, shallowReactive, shallowRef } from 'vue'
+import {
+  computed,
+  isReactive,
+  isReadonly,
+  isRef,
+  isShallow,
+  reactive,
+  readonly,
+  ref,
+  shallowReactive,
+  shallowRef,
+} from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { restoreState, snapshotState } from '../../src/runtime/app/state-snapshot'
 
@@ -65,6 +76,11 @@ describe('state snapshots', () => {
       get: () => `${firstName.value} ${lastName.value}`,
       set: setter,
     })
+
+    expect(isRef(fullName)).toBe(true)
+    expect(isReadonly(fullName)).toBe(false)
+    expect(isReactive(fullName)).toBe(false)
+    expect(isShallow(fullName)).toBe(false)
 
     expect(snapshotState({ fullName })).toEqual({
       fullName: { type: 'ref', value: 'Client Initial' },

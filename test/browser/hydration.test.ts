@@ -364,4 +364,27 @@ describe('browser hydration', async () => {
 
     await page.close()
   })
+
+  it('characterizes writable computed setter execution during hydration', async () => {
+    const page = await createPage()
+    const browserMessages: string[] = []
+
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') {
+        browserMessages.push(message.text())
+      }
+    })
+    page.on('pageerror', (error) => browserMessages.push(error.message))
+
+    await page.goto(url('/writable-computed'), { waitUntil: 'hydration' })
+
+    await expect(page.locator('#writable-first').textContent()).resolves.toBe('Server')
+    await expect(page.locator('#writable-last').textContent()).resolves.toBe('User')
+    await expect(page.locator('#writable-full').textContent()).resolves.toBe('Server User')
+    await expect(page.locator('#writable-setter-calls').textContent()).resolves.toBe('1')
+    await expect(page.locator('#writable-before-setter').textContent()).resolves.toBe('Server|User')
+    expect(browserMessages.filter((message) => /hydration|mismatch/i.test(message))).toEqual([])
+
+    await page.close()
+  })
 })

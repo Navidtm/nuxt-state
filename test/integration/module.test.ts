@@ -160,4 +160,14 @@ describe('nuxt-state module', async () => {
       expect(observedMarkers).toEqual(new Set([marker]))
     }
   })
+
+  it('characterizes writable computed as mutable snapshot state', async () => {
+    const html = await $fetch<string>('/writable-computed')
+
+    expect(html).toContain('<output id="writable-first">Server</output>')
+    expect(html).toContain('<output id="writable-last">User</output>')
+    expect(html).toContain('<output id="writable-full">Server User</output>')
+    expect(html).toContain('<output id="writable-setter-calls">pending</output>')
+    expect(html).toMatch(/"fullName":\d+.*?"Server User"/s)
+  })
 })
