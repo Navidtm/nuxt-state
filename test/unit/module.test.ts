@@ -60,4 +60,59 @@ describe('nuxt-state module', () => {
       await nuxt.close()
     }
   })
+
+  it('registers a stable DevTools iframe and bridge only in development', async () => {
+    const nuxt = await loadNuxt({
+      cwd: fileURLToPath(new URL('../fixtures/basic', import.meta.url)),
+      dev: true,
+      overrides: { modules: [NuxtState], devtools: { enabled: true } },
+    })
+
+    try {
+      const tabs: Array<Record<string, unknown>> = []
+      await nuxt.callHook('devtools:customTabs', tabs as never)
+
+      expect(tabs).toContainEqual(
+        expect.objectContaining({
+          name: 'nuxt-state',
+          title: 'Nuxt State',
+          view: { type: 'iframe', src: '/__nuxt_state_devtools__/' },
+        }),
+      )
+      expect(nuxt.options.devServerHandlers).toEqual(
+        expect.arrayContaining([expect.objectContaining({ route: '/__nuxt_state_devtools__/' })]),
+      )
+      expect(
+        nuxt.options.plugins.map((plugin) => (typeof plugin === 'string' ? plugin : plugin.src)),
+      ).toEqual(expect.arrayContaining([expect.stringContaining('/plugins/devtools.client')]))
+    } finally {
+      await nuxt.close()
+    }
+  })
+
+  it.each([
+    { label: 'disabled development', dev: true, devtools: { enabled: false } },
+    { label: 'production', dev: false, devtools: { enabled: true } },
+  ])('excludes DevTools integration in $label', async ({ dev, devtools }) => {
+    const nuxt = await loadNuxt({
+      cwd: fileURLToPath(new URL('../fixtures/basic', import.meta.url)),
+      dev,
+      overrides: { modules: [NuxtState], devtools },
+    })
+
+    try {
+      const tabs: Array<Record<string, unknown>> = []
+      await nuxt.callHook('devtools:customTabs', tabs as never)
+
+      expect(tabs).not.toContainEqual(expect.objectContaining({ name: 'nuxt-state' }))
+      expect(nuxt.options.devServerHandlers).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ route: '/__nuxt_state_devtools__/' })]),
+      )
+      expect(
+        nuxt.options.plugins.map((plugin) => (typeof plugin === 'string' ? plugin : plugin.src)),
+      ).not.toEqual(expect.arrayContaining([expect.stringContaining('/plugins/devtools.client')]))
+    } finally {
+      await nuxt.close()
+    }
+  })
 })
