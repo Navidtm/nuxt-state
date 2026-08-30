@@ -83,6 +83,62 @@ Different server requests and different client apps receive different objects.
 The returned object is not cloned, wrapped, or transformed. Refs remain refs, computed
 refs remain computed refs, reactive objects remain reactive, and functions are unchanged.
 
+## Nuxt Layers
+
+Reusable Nuxt Layers can provide states from their resolved application directory:
+
+```text
+layers/
+└── admin/
+    ├── nuxt.config.ts
+    └── app/
+        └── states/
+            └── permissions.ts
+```
+
+```ts
+// layers/admin/app/states/permissions.ts
+export const usePermissions = defineState(() => {
+  const roles = ref(['reader'])
+  return { roles }
+})
+```
+
+`usePermissions()` is auto-imported in the consuming application. Local auto-discovered layers,
+layers listed in `extends`, package-provided layers, nested state directories, hydration, and
+request isolation use the same behavior as project states.
+
+nuxt-state follows Nuxt's normal layer priority. The project wins over every extended layer;
+higher-priority layers win over lower-priority layers when exports collide. No aliases or custom
+override API are generated.
+
+## DevTools
+
+Enable Nuxt DevTools normally:
+
+```ts
+export default defineNuxtConfig({
+  devtools: {
+    enabled: true,
+  },
+})
+```
+
+In development, the **Nuxt State** tab provides a read-only inspector. It shows active state
+instances, internal hydration keys, Hydrated/Client-only status, member classifications, bounded
+value previews, and a separate list of statically discovered states with project-relative source
+and layer origin.
+
+Opening the panel never executes a state factory. Values are queried while the view is visible;
+there are no permanent deep watchers. Functions are descriptors and cannot be invoked, large
+values are truncated, and cyclic/shared graphs use reference markers. v0.3.0 does not support
+editing, patching, resetting, deleting, or disposing application state.
+
+Nuxt DevTools 3.4's stable iframe integration is used. No alpha/nightly override is required.
+Runtime hydration hashes cannot currently be mapped safely back to export names without another
+compiler transform, so active cards use `State $<internal-key>` while the separate Known states
+list shows names, sources, and layer origins. The internal key is debug information, not API.
+
 ## Semantics
 
 - The factory is synchronous and takes no arguments.
@@ -159,6 +215,7 @@ snapshot-metadata overhead.
 - readonly views when their mutable source is also returned and hydrated;
 - `useFetch()`, `useAsyncData()`, `callOnce()`, `useCookie()`, `useRuntimeConfig()`, `useRoute()`,
   and `useRouter()` in valid Nuxt contexts;
+- project, local, explicit-extends, and package-provided Nuxt Layer states with native priority;
 - first use from plugins, route middleware, layouts, pages, and components;
 - state lifetime across client navigation and repeated component mount/unmount.
 
@@ -192,11 +249,11 @@ snapshot metadata points at the same payload graph rather than serializing respo
   inside refs, symbols, and arbitrary native/class resources are unsupported.
 - Closure-private mutable state is not discoverable; return any ref/reactive value whose SSR
   mutations must hydrate.
-- No Nuxt Layers support yet.
 - State resets when its module is hot-reloaded; HMR preservation is not implemented.
 - Context-sensitive composables must still be called while normal Nuxt context is available.
-- There is no reset API, keyed/multi-instance state, DevTools integration, or central
-  user-facing registry.
+- DevTools is read-only and development-only. Active hashes are not safely correlated with
+  static export names; there is no public or process-global state registry.
+- There is no reset API or keyed/multi-instance state.
 - The keyed transform is source-sensitive. The supported path is the module's auto-imported
   `defineState`; a barrel re-export or unrelated manual wrapper is not guaranteed to receive an
   internal hydration key.

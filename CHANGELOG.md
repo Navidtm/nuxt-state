@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.0
+
+- Discover `app/states/` across resolved Nuxt Layers with the official
+  `getLayerDirectories()` API, including local auto-layers, explicit `extends`, package layers,
+  nested states, SSR hydration, request isolation, and native priority collisions.
+- Add a development-only, read-only Nuxt DevTools iframe for active instances, hydration status,
+  internal keys, conservative Vue member kinds, and bounded cycle-safe value previews.
+- Show statically known state export names, project-relative sources, and layer origins separately
+  from lazy active instances; opening DevTools never executes factories.
+- Keep DevTools registration, view serving, polling, bridge, and inspector code out of production;
+  use stable Nuxt DevTools 3.4 without nightly or alpha overrides.
+- Characterize writable computed hydration in Chromium: it enters the snapshot as a mutable ref,
+  source refs restore first in the tested return order, and its setter runs exactly once with
+  already-restored values. It remains unsupported because Vue has no public computed detector and
+  setters may have side effects.
+
+The public API remains exactly `defineState(factory)`. HMR still resets state, DevTools cannot
+mutate state, and no public IDs, options, persistence, reset, patch, or subscription APIs were
+added.
+
 ## 0.2.0
 
 - Run each state factory in a detached, app-lived Vue effect scope so watchers, route state, and

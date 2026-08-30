@@ -28,8 +28,24 @@ Complete:
   stress coverage;
 - clean-checkout CI type preparation.
 
-The public API remains exactly `defineState(factory)`. v0.2.0 shifts the next phase from adding
-capabilities toward preparing and evaluating a focused public Nuxt core proposal.
+The public API remains exactly `defineState(factory)`.
+
+## v0.3.0: Layers and observation
+
+Complete:
+
+- state discovery from resolved project, local, explicit, and package Nuxt Layers through
+  `getLayerDirectories()`;
+- native Nuxt/Unimport priority and collision behavior without aliases or override APIs;
+- layer hydration, request isolation, nested exports, and HMR characterization;
+- development-only, read-only Nuxt DevTools iframe with active state inspection;
+- separate known-state source/layer metadata without eager factory execution;
+- bounded cyclic-safe value previews, conservative Vue classification, polling only while the
+  view is active, and HMR/navigation cleanup coverage;
+- exact writable-computed hydration characterization without claiming support.
+
+No alpha/nightly DevTools dependency is required. The public API remains exactly
+`defineState(factory)`.
 
 ## Later investigation
 
@@ -37,11 +53,14 @@ capabilities toward preparing and evaluating a focused public Nuxt core proposal
   factory into a compiler-managed DSL;
 - payload-efficiency guarantees for Nuxt data composables, including whether metadata can be
   omitted through a future public marker or coordination API;
-- advanced Vue reactivity primitives and writable computed edge cases;
-- Nuxt Layers;
-- observational DevTools support;
+- advanced Vue reactivity primitives beyond the v0.3 writable-computed characterization;
+- mapping runtime hydration hashes to static export metadata without adding compiler magic;
+- DevTools editing, only if a compelling read/write safety model is ever justified;
+- default-export convention research without changing the current named-export recommendation;
+- a possible skip-hydration concept, without reserving an API today;
 - richer payload serialization diagnostics;
-- further HMR behavior investigation;
+- HMR preservation investigation (state reset remains the current contract);
 - preparation of a public Nuxt core proposal.
 
-These are separate design areas and are not part of v0.2.0.
+After the focused v0.3.0 observability and Layers milestone, the primary next phase should be a
+Nuxt core proposal rather than continued module feature growth.

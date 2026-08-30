@@ -1,7 +1,8 @@
 # Architecture
 
 This document describes the inspected prototype baseline, the Nuxt 4.5.2 hydration architecture
-introduced in v0.1.0, and the lifecycle/compatibility hardening completed for v0.2.0.
+introduced in v0.1.0, lifecycle/compatibility hardening completed for v0.2.0, and Layers plus
+read-only DevTools integration completed for v0.3.0.
 
 ## Baseline
 
@@ -245,6 +246,104 @@ nondeterministic. Instead, ownership is verified structurally and cleanup behavi
 deterministically. A 50-request concurrent test runs in the normal suite and an optional
 200-request production-fixture stress test verifies every HTML response and hydration payload
 contains only its own marker.
+
+## v0.3.0 Layers
+
+The module calls the public Nuxt Kit API `getLayerDirectories(nuxt)`. For every returned layer it
+registers:
+
+```ts
+resolve(layer.app, 'states/**')
+```
+
+Using the resolved `layer.app` matters because a layer can customize its source/application
+directory; `<layer-root>/app/states` is not assumed. No access to `nuxt.options._layers` exists in
+nuxt-state.
+
+`getLayerDirectories` returns project-first priority order. Nuxt 4.5.2's imports module also
+assigns scanned imports a priority based on which resolved layer application path contains the
+source. Registering directories in official order therefore produces normal Unimport collision
+behavior without reversing the list or adding aliases. The tested order is project, higher local
+layer, base local layer, explicit `extends`, then a workspace package layer. Project exports win;
+unrelated lower-layer exports remain available.
+
+Layer source location does not participate in runtime ownership. The imported wrapper still uses
+its closure `WeakMap<NuxtApp, Instance>` and the hydration registry still uses the request's
+NuxtApp. Real-browser hydration, concurrent SSR requests, and local-layer HMR prove that reusable
+source files do not create process-global state. HMR replaces the registry entry by generated key,
+stops the old effect scope, resets state, and leaves one inspector entry.
+
+## v0.3.0 DevTools
+
+### Stable integration strategy
+
+Nuxt 4.5.2 currently installs stable `@nuxt/devtools@3.4.2` and
+`@nuxt/devtools-kit@3.4.2`. That stable kit exposes `addCustomTab()` and the iframe host bridge;
+the newer `onDevtoolsReady(ctx)` / `ctx.docks.register()` path belongs to DevTools 4 alpha at the
+time of this release. nuxt-state keeps the stable adapter isolated in `src/devtools/register.ts`
+instead of forcing an alpha/nightly override. It can move to the dock API when that API reaches the
+normal stable Nuxt 4 toolchain.
+
+The adapter registers one iframe at `/__nuxt_state_devtools__/`. A development server handler
+serves a small standalone HTML/CSS/JavaScript view. The app-side development client plugin exposes
+one internal `nuxt-state:inspect` hook. The iframe obtains the host Nuxt app through the official
+DevTools iframe bridge and requests a fresh read-only representation. No separate websocket,
+public API route, or production RPC endpoint is added.
+
+### Active and known state
+
+Active state inspection reuses the existing per-app hydration registry. In development only, an
+entry also references the exact instance already held by its snapshot/restore closures and records
+Hydrated, Client-only, or Server status. There is no second state graph. Lazy factories are never
+called by the inspector.
+
+Build metadata is collected from Nuxt's `imports:extend` results for the registered state
+directories. It contains the winning export name, project-relative source, and layer origin.
+Static metadata is displayed separately as Known states. It does not imply factory execution.
+
+The runtime generated hydration key is available on the active registry entry. There is no public,
+stable correlation between that hash and Nuxt's auto-import export metadata. Stack traces and
+runtime heuristics are rejected, and v0.3.0 does not add another compiler transform merely for a
+prettier label. Active cards therefore fall back to `State $<key>`; Known states provide accurate
+names and sources.
+
+### Safe inspection and updates
+
+Enumerable members use public Vue APIs only: mutable and shallow refs, mutable and shallow
+reactives, readonly/readonly refs, functions, and other values receive conservative labels. A
+readonly ref is not claimed to be computed because Vue has no public computed detector.
+
+Values are converted to a bounded representation at query time. Strings, collection items,
+depth, and total nodes have limits; truncation is explicit. Date, Map, Set, arrays, cycles, and
+shared references are represented safely. Functions become name descriptors and are never sent as
+callable values. Getter, proxy, or unsupported class failures are contained to an unavailable
+preview instead of escaping into the application.
+
+The iframe refreshes once per second only while intersecting/visible, prevents overlapping
+requests, supports manual refresh, and stops its timer on `pagehide`. No deep watcher is installed,
+whether the panel is closed or open.
+
+### Production and memory exclusion
+
+Registration, the view handler, static metadata template, and client bridge are installed only
+when `nuxt.options.dev` is true and DevTools is not disabled. Production builds contain no view,
+polling, endpoint, inspector plugin, or imported inspector implementation. Core registries remain
+weakly keyed by NuxtApp. Debug references exist only inside the same per-app registry, disappear
+when HMR replaces an entry, and become collectible with the Nuxt app.
+
+## v0.3.0 writable computed characterization
+
+A writable computed remains publicly indistinguishable from a normal mutable ref:
+`isRef()` is true, while `isReadonly()`, `isReactive()`, and `isShallow()` are false. There is no
+public Vue `isComputed()` or reliable writable-computed detector.
+
+The real SSR/Chromium characterization returns source refs before the writable computed. All three
+enter the snapshot. On the client, the source refs restore first; assigning the computed snapshot
+then invokes its setter exactly once with already-restored source values. The setter repeats the
+same source assignments, so the displayed state hydrates without a mismatch, but arbitrary setter
+side effects still run once during hydration. Changing return order can also change restore order.
+For those reasons writable computed remains unsupported hydration state; return and hydrate its
+sources instead. No private Vue fields or heuristics are used.
 
 ## Lifecycle and isolation details
 
