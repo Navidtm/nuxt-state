@@ -1,5 +1,5 @@
-import type { ComputedRef, Ref } from 'vue'
-import { computed, ref } from 'vue'
+import type { ComputedRef, Ref, ShallowRef } from 'vue'
+import { computed, ref, shallowReactive, shallowRef } from 'vue'
 import { defineState } from '../../dist/runtime/app/composables/defineState'
 
 const useCounter = defineState(() => {
@@ -21,6 +21,18 @@ const increment: (step: number) => void = counter.increment
 void count
 void double
 void increment
+
+const useShallow = defineState(() => {
+  const catalog = shallowRef({ version: 1 })
+  const metadata = shallowReactive({ version: 1 })
+  return { catalog, metadata }
+})
+const shallow = useShallow()
+const catalog: ShallowRef<{ version: number }> = shallow.catalog
+const metadata: { version: number } = shallow.metadata
+
+void catalog
+void metadata
 
 // @ts-expect-error generated state composables take no arguments
 useCounter('key')
