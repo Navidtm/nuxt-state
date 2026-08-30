@@ -67,6 +67,37 @@ describe('development state inspector', () => {
     expect(serialized.length).toBeLessThan(8_000)
   })
 
+  it('contains unusual member failures instead of crashing the application', () => {
+    const nuxtApp = {}
+    const unusual = Object.defineProperty({}, 'broken', {
+      enumerable: true,
+      get() {
+        throw new Error('getter failed')
+      },
+    })
+    registerDebugState(nuxtApp, '$unusual', unusual)
+
+    expect(inspectActiveStates(nuxtApp)[0]?.members).toEqual([
+      {
+        name: 'broken',
+        kind: 'unavailable',
+        value: { unavailable: 'getter failed' },
+      },
+    ])
+    expect(
+      previewValue(
+        new Proxy(
+          {},
+          {
+            ownKeys() {
+              throw new Error('proxy failed')
+            },
+          },
+        ),
+      ),
+    ).toEqual({ unavailable: 'proxy failed' })
+  })
+
   it('reflects current values on demand without watchers', () => {
     const nuxtApp = {}
     const count = ref(1)

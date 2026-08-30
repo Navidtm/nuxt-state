@@ -34,13 +34,7 @@ export function inspectActiveStates(nuxtApp: object): StateInspectorEntry[] {
     if (!entry.debug) continue
 
     const state = entry.debug.state
-    const members = isObjectLike(state)
-      ? Object.entries(state).map(([name, value]) => ({
-          name,
-          kind: classifyStateMember(value),
-          value: previewValue(isRef(value) ? value.value : value),
-        }))
-      : [{ name: 'value', kind: classifyStateMember(state), value: previewValue(state) }]
+    const members = inspectMembers(state)
 
     entries.push({
       key,
@@ -70,10 +64,43 @@ export function classifyStateMember(value: unknown): string {
 }
 
 export function previewValue(value: unknown): unknown {
-  const context: PreviewContext = { seen: new WeakMap(), nodes: 0, truncated: false }
-  const preview = visit(value, 0, context)
+  try {
+    const context: PreviewContext = { seen: new WeakMap(), nodes: 0, truncated: false }
+    const preview = visit(value, 0, context)
 
-  return context.truncated ? { preview, truncated: true } : preview
+    return context.truncated ? { preview, truncated: true } : preview
+  } catch (error) {
+    return { unavailable: safeErrorMessage(error) }
+  }
+}
+
+function inspectMembers(state: unknown): StateInspectorMember[] {
+  if (!isObjectLike(state)) {
+    return [{ name: 'value', kind: classifyStateMember(state), value: previewValue(state) }]
+  }
+
+  try {
+    return Object.keys(state).map((name) => {
+      try {
+        const value = state[name]
+        return {
+          name,
+          kind: classifyStateMember(value),
+          value: previewValue(isRef(value) ? value.value : value),
+        }
+      } catch (error) {
+        return { name, kind: 'unavailable', value: { unavailable: safeErrorMessage(error) } }
+      }
+    })
+  } catch (error) {
+    return [
+      {
+        name: 'value',
+        kind: 'unavailable',
+        value: { unavailable: safeErrorMessage(error) },
+      },
+    ]
+  }
 }
 
 function visit(value: unknown, depth: number, context: PreviewContext): unknown {
@@ -155,4 +182,9 @@ function visit(value: unknown, depth: number, context: PreviewContext): unknown 
 
 function isObjectLike(value: unknown): value is Record<string, unknown> {
   return (typeof value === 'object' && value !== null) || typeof value === 'function'
+}
+
+function safeErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message.slice(0, 200)
+  return 'Value could not be inspected'
 }
