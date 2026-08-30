@@ -1,0 +1,8 @@
+{
+  "name": "nuxt-state-layers-fixture",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "nuxt-state-fixture-layer": "workspace:*"
+  }
+}

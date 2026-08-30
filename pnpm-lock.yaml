@@ -70,6 +70,14 @@ importers:
         specifier: workspace:*
         version: link:..
 
+  test/fixtures/layers:
+    dependencies:
+      nuxt-state-fixture-layer:
+        specifier: workspace:*
+        version: link:packages/external-layer
+
+  test/fixtures/layers/packages/external-layer: {}
+
 packages:
 
   '@antfu/install-pkg@2.0.1':

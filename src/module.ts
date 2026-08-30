@@ -1,5 +1,12 @@
 import { resolve } from 'node:path'
-import { addImports, addImportsDir, addPlugin, createResolver, defineNuxtModule } from '@nuxt/kit'
+import {
+  addImports,
+  addImportsDir,
+  addPlugin,
+  createResolver,
+  defineNuxtModule,
+  getLayerDirectories,
+} from '@nuxt/kit'
 
 export type ModuleOptions = Record<string, never>
 
@@ -28,8 +35,9 @@ export default defineNuxtModule<ModuleOptions>({
 
     addPlugin(resolver.resolve('./runtime/app/plugins/hydration'))
 
-    // Unimport scans a plain directory at one level. The glob keeps Nuxt Kit's
-    // official scanner while matching the recursive behavior of composables.
-    addImportsDir(resolve(nuxt.options.srcDir, 'states/**'))
+    // Nuxt assigns scanned imports their native layer priority from the source
+    // path. Registering every resolved app directory therefore preserves the
+    // project-first order returned by getLayerDirectories without custom aliases.
+    addImportsDir(getLayerDirectories(nuxt).map((layer) => resolve(layer.app, 'states/**')))
   },
 })
