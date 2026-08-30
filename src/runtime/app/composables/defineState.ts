@@ -62,6 +62,11 @@ export function defineState<T>(factory: () => T & NotPromise<T>, internalKey?: s
           state: instance,
           hydration: import.meta.server ? 'Server' : 'Client-only',
         }
+        const restore = entry.restore
+        entry.restore = (snapshot) => {
+          restore(snapshot)
+          entry.debug!.hydration = 'Hydrated'
+        }
       }
 
       registerHydratableState(nuxtApp, internalKey, entry)

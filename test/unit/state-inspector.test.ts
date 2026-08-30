@@ -16,10 +16,13 @@ function registerDebugState(
   state: unknown,
   hydration: 'Hydrated' | 'Client-only' | 'Server' = 'Client-only',
 ): void {
+  const debug = { state, hydration }
   registerHydratableState(nuxtApp, key, {
     snapshot: vi.fn(),
-    restore: vi.fn(),
-    debug: { state, hydration },
+    restore: vi.fn(() => {
+      debug.hydration = 'Hydrated'
+    }),
+    debug,
   })
 }
 
