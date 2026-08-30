@@ -1,5 +1,6 @@
 import { defineNuxtPlugin, useHydration } from '#app'
 import {
+  clearPendingStateSnapshots,
   collectStateSnapshots,
   receiveStateSnapshots,
   type StateHydrationPayload,
@@ -13,4 +14,8 @@ export default defineNuxtPlugin((nuxtApp) => {
     () => collectStateSnapshots(nuxtApp),
     (snapshots) => receiveStateSnapshots(nuxtApp, snapshots),
   )
+
+  if (import.meta.client) {
+    nuxtApp.hook('app:mounted', () => clearPendingStateSnapshots(nuxtApp))
+  }
 })

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  clearPendingStateSnapshots,
   collectStateSnapshots,
   getStateRegistry,
   receiveStateSnapshots,
@@ -92,5 +93,16 @@ describe('state hydration registry', () => {
     })
 
     expect([...getStateRegistry(nuxtApp).hydration.keys()]).toEqual(['$new'])
+  })
+
+  it('clears snapshots left unused after initial hydration', () => {
+    const nuxtApp = {}
+
+    receiveStateSnapshots(nuxtApp, {
+      $unused: { count: 1 },
+    })
+    clearPendingStateSnapshots(nuxtApp)
+
+    expect(getStateRegistry(nuxtApp).hydration.size).toBe(0)
   })
 })

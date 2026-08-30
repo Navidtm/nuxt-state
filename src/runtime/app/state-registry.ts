@@ -68,3 +68,7 @@ export function receiveStateSnapshots(
     entry.restore(snapshot)
   }
 }
+
+export function clearPendingStateSnapshots(nuxtApp: object): void {
+  getStateRegistry(nuxtApp).hydration.clear()
+}
