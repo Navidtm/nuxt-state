@@ -15,5 +15,19 @@ const products = useProducts()
     >
       Refresh
     </button>
+    <button
+      id="product-fail"
+      type="button"
+      @click="products.failRefresh()"
+    >
+      Fail
+    </button>
+    <button
+      id="product-recover"
+      type="button"
+      @click="products.recover()"
+    >
+      Recover
+    </button>
   </section>
 </template>

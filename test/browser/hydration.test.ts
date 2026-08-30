@@ -218,6 +218,30 @@ describe('browser hydration', async () => {
       await page.locator('#product-primary-request').textContent(),
     )
     expect(apiRequests).toHaveLength(1)
+
+    const failedResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/products' && response.status() === 500,
+    )
+    await page.locator('#product-fail').click()
+    await failedResponse
+    await expect(page.locator('#product-primary-status').textContent()).resolves.toBe('error')
+    await expect(page.locator('#product-primary-error').textContent()).resolves.toBe('true')
+    await expect(page.locator('#product-primary-count').textContent()).resolves.toBe('0')
+
+    const recoveredResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/products' && response.status() === 200,
+    )
+    await page.locator('#product-recover').click()
+    await recoveredResponse
+    await expect(page.locator('#product-primary-status').textContent()).resolves.toBe('success')
+    await expect(page.locator('#product-primary-error').textContent()).resolves.toBe('false')
+    await expect(page.locator('#product-primary-count').textContent()).resolves.toBe('2')
+    expect(apiRequests.some((request) => new URL(request).searchParams.get('fail') === '1')).toBe(
+      true,
+    )
+    expect(new URL(apiRequests.at(-1)!).searchParams.has('fail')).toBe(false)
     expect(browserMessages.filter((message) => /hydration|mismatch/i.test(message))).toEqual([])
 
     await page.close()
