@@ -56,7 +56,7 @@
     "test:browser": "vitest run test/browser",
     "check": "pnpm run fmt:check && pnpm run lint",
     "test:watch": "vitest",
-    "test:types": "nuxt-module-build build && vue-tsc --noEmit && pnpm --dir playground exec vue-tsc --noEmit"
+    "test:types": "nuxt-module-build prepare && nuxt-module-build build && vue-tsc --noEmit && pnpm --dir playground exec vue-tsc --noEmit"
   },
   "dependencies": {
     "@nuxt/kit": "^4.5.2"
