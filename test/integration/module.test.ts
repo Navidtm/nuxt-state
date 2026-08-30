@@ -18,6 +18,13 @@ describe('nuxt-state module', async () => {
     expect(html).toContain('1:2:nested-state:first:second')
   })
 
+  it('does not expose the DevTools view in production', async () => {
+    const response = await fetch('/__nuxt_state_devtools__/')
+
+    expect(response.status).toBe(404)
+    expect(await response.text()).not.toContain('Nuxt State <span class="badge">Read only')
+  })
+
   it('isolates state between concurrent SSR requests', async () => {
     const [first, second] = await Promise.all([
       $fetch<string>('/isolation?marker=first&delay=50'),
