@@ -142,4 +142,22 @@ describe('nuxt-state module', async () => {
     expect(html).not.toContain('lazy-id')
     expect(html).not.toContain('lazy-component-id')
   })
+
+  it('isolates many concurrent SSR HTML and hydration payloads', async () => {
+    const markers = Array.from({ length: 50 }, (_, index) => `stress-${index + 1}`)
+    const responses = await Promise.all(
+      markers.map((marker, index) =>
+        $fetch<string>(`/isolation?marker=${marker}&delay=${index % 5}`),
+      ),
+    )
+
+    for (const [index, html] of responses.entries()) {
+      const marker = markers[index]!
+      const observedMarkers = new Set(html.match(/stress-\d+/g) ?? [])
+
+      expect(html).toContain(`data-after="${marker}"`)
+      expect(html).toContain('__nuxt_state__')
+      expect(observedMarkers).toEqual(new Set([marker]))
+    }
+  })
 })

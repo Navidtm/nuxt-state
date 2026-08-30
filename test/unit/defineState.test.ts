@@ -45,6 +45,31 @@ describe('defineState', () => {
     expect(observed).toHaveBeenLastCalledWith(1)
   })
 
+  it('stops the detached scope when the Vue app unmounts', () => {
+    const cleanups: Array<() => void> = []
+    const nuxtApp = {
+      vueApp: {
+        onUnmount(cleanup: () => void) {
+          cleanups.push(cleanup)
+        },
+      },
+    }
+    const source = ref(0)
+    const observed = vi.fn()
+    setCurrentNuxtApp(nuxtApp)
+    const useExample = defineState(() => {
+      watchEffect(() => observed(source.value), { flush: 'sync' })
+      return { source }
+    })
+
+    useExample()
+    expect(cleanups).toHaveLength(1)
+    cleanups[0]!()
+    source.value++
+
+    expect(observed).toHaveBeenCalledTimes(1)
+  })
+
   it('creates isolated objects for different Nuxt apps', () => {
     const useExample = defineState(() => ({ value: ref(0) }))
     const firstApp = {}

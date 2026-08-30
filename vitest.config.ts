@@ -9,7 +9,7 @@ export default defineConfig({
   },
   test: {
     include: ['test/**/*.test.ts'],
-    exclude: ['test/types/**'],
+    exclude: ['test/types/**', 'test/stress/**'],
     testTimeout: 60_000,
     hookTimeout: 120_000,
   },

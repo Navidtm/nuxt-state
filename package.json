@@ -54,6 +54,7 @@
     "fmt:check": "oxfmt --check",
     "test": "vitest run",
     "test:browser": "vitest run test/browser",
+    "test:stress": "vitest run --config vitest.stress.config.ts",
     "check": "pnpm run fmt:check && pnpm run lint",
     "test:watch": "vitest",
     "test:types": "nuxt-module-build prepare && nuxt-module-build build && vue-tsc --noEmit && pnpm --dir playground exec vue-tsc --noEmit"

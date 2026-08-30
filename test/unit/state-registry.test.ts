@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   collectStateSnapshots,
+  getStateRegistry,
   receiveStateSnapshots,
   registerHydratableState,
 } from '../../src/runtime/app/state-registry'
@@ -76,5 +77,20 @@ describe('state hydration registry', () => {
     expect(firstRestore).toHaveBeenCalledOnce()
     expect(hotRestore).not.toHaveBeenCalled()
     expect(firstDispose).toHaveBeenCalledOnce()
+    expect(getStateRegistry(nuxtApp).active.size).toBe(1)
+    expect(getStateRegistry(nuxtApp).hydration.size).toBe(0)
+  })
+
+  it('replaces rather than accumulates pending hydration payloads', () => {
+    const nuxtApp = {}
+
+    receiveStateSnapshots(nuxtApp, {
+      $old: { count: 1 },
+    })
+    receiveStateSnapshots(nuxtApp, {
+      $new: { count: 2 },
+    })
+
+    expect([...getStateRegistry(nuxtApp).hydration.keys()]).toEqual(['$new'])
   })
 })
