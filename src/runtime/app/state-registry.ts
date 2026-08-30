@@ -47,7 +47,7 @@ export function registerHydratableState(
     const snapshot = registry.hydration.get(key)
     registry.hydration.delete(key)
     entry.restore(snapshot)
-    if (entry.debug) entry.debug.hydration = 'Hydrated'
+    if (import.meta.dev && entry.debug) entry.debug.hydration = 'Hydrated'
   }
 }
 
@@ -74,7 +74,7 @@ export function receiveStateSnapshots(
     const snapshot = registry.hydration.get(key)
     registry.hydration.delete(key)
     entry.restore(snapshot)
-    if (entry.debug) entry.debug.hydration = 'Hydrated'
+    if (import.meta.dev && entry.debug) entry.debug.hydration = 'Hydrated'
   }
 }
 

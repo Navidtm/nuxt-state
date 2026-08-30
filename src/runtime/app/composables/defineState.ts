@@ -1,6 +1,6 @@
 import { useNuxtApp } from '#app'
 import { effectScope } from 'vue'
-import { registerHydratableState } from '../state-registry'
+import { registerHydratableState, type HydratableStateEntry } from '../state-registry'
 import { restoreState, snapshotState } from '../state-snapshot'
 
 type NotPromise<T> = T extends PromiseLike<unknown> ? never : unknown
@@ -51,17 +51,20 @@ export function defineState<T>(factory: () => T & NotPromise<T>, internalKey?: s
     app.vueApp?.onUnmount?.(() => scope.stop())
 
     if (internalKey) {
-      registerHydratableState(nuxtApp, internalKey, {
+      const entry: HydratableStateEntry = {
         snapshot: () => snapshotState(instance),
         restore: (snapshot) => restoreState(instance, snapshot),
         dispose: () => scope.stop(),
-        debug: import.meta.dev
-          ? {
-              state: instance,
-              hydration: import.meta.server ? 'Server' : 'Client-only',
-            }
-          : undefined,
-      })
+      }
+
+      if (import.meta.dev) {
+        entry.debug = {
+          state: instance,
+          hydration: import.meta.server ? 'Server' : 'Client-only',
+        }
+      }
+
+      registerHydratableState(nuxtApp, internalKey, entry)
     }
 
     return instance
