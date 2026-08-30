@@ -2,6 +2,9 @@
 const { status, startSession } = useSession()
 const { darkMode } = usePreferences()
 const { locale } = useLocale()
+const { featured, metadata } = useCatalog()
+const { path } = useRouteState()
+const { message: layerMessage } = useDemoLayerState()
 </script>
 
 <template>
@@ -52,6 +55,11 @@ const { locale } = useLocale()
           >
             Toggle theme
           </button>
+        </div>
+        <div>
+          <span class="eyebrow">Nuxt Layer state</span>
+          <strong>{{ layerMessage }}</strong>
+          <small>{{ featured.title }} · {{ metadata.tags.size }} tags · {{ path }}</small>
         </div>
       </aside>
     </div>
