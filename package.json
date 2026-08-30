@@ -60,6 +60,7 @@
     "test:types": "nuxt-module-build prepare && nuxt-module-build build && vue-tsc --noEmit && pnpm --dir playground exec vue-tsc --noEmit"
   },
   "dependencies": {
+    "@nuxt/devtools-kit": "^3.4.2",
     "@nuxt/kit": "^4.5.2"
   },
   "devDependencies": {

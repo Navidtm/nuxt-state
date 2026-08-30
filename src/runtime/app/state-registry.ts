@@ -4,6 +4,13 @@ export interface HydratableStateEntry {
   snapshot: () => unknown
   restore: (snapshot: unknown) => void
   dispose?: () => void
+  debug?: {
+    state: unknown
+    name?: string
+    source?: string
+    origin?: string
+    hydration: 'Hydrated' | 'Client-only' | 'Server'
+  }
 }
 
 interface StateRegistry {
@@ -40,6 +47,7 @@ export function registerHydratableState(
     const snapshot = registry.hydration.get(key)
     registry.hydration.delete(key)
     entry.restore(snapshot)
+    if (entry.debug) entry.debug.hydration = 'Hydrated'
   }
 }
 
@@ -66,6 +74,7 @@ export function receiveStateSnapshots(
     const snapshot = registry.hydration.get(key)
     registry.hydration.delete(key)
     entry.restore(snapshot)
+    if (entry.debug) entry.debug.hydration = 'Hydrated'
   }
 }
 

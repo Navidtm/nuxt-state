@@ -55,6 +55,12 @@ export function defineState<T>(factory: () => T & NotPromise<T>, internalKey?: s
         snapshot: () => snapshotState(instance),
         restore: (snapshot) => restoreState(instance, snapshot),
         dispose: () => scope.stop(),
+        debug: import.meta.dev
+          ? {
+              state: instance,
+              hydration: import.meta.server ? 'Server' : 'Client-only',
+            }
+          : undefined,
       })
     }
 
