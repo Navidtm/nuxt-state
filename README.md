@@ -1,32 +1,14 @@
 # nuxt-state
 
-> Define shared Nuxt state using the same Composition API you already use in composables.
+> Define shared Nuxt state with the Vue Composition API.
 
-`nuxt-state` is an experimental Nuxt 4 module that explores one small primitive:
+`nuxt-state` is an experimental Nuxt 4 module. A composable created with
+`defineState` runs lazily once per Nuxt application and returns the same result to every
+caller in that app.
 
-```ts
-defineState(() => {
-  // standard Vue Composition API
-  return {/* public state */}
-})
-```
-
-A regular composable runs its factory for every invocation. A composable created by
-`defineState` runs its factory lazily, once for the current Nuxt application instance,
-and returns that exact result to every caller in that app.
-
-This is a working open-source prototype for discussion and possible future contribution to
-Nuxt. The API is intentionally narrow and the project is not yet presented as production-ready.
-
-## Why
-
-Nuxt's `useState()` is excellent for simple SSR-aware values. Pinia is a strong choice
-when an application wants a dedicated state-management library and its ecosystem.
-This project does not replace either one. It explores a lightweight native abstraction
-between a raw `useState()` value and a full state-management library.
-
-There are no stores, actions, getters, mutations, IDs, configuration objects, or special
-wrappers. The factory and its return value use normal Vue semantics.
+It sits between a simple `useState()` value and a full state-management library such as
+Pinia. There are no stores, IDs, actions, getters, or special wrappers—only standard Vue
+primitives.
 
 ## Install
 
@@ -43,7 +25,7 @@ export default defineNuxtConfig({
 
 ## Usage
 
-Create a state in Nuxt 4's application source directory:
+Create states in `app/states/`:
 
 ```ts
 // app/states/counter.ts
@@ -55,211 +37,110 @@ export const useCounter = defineState(() => {
     count.value++
   }
 
-  return {
-    count,
-    double,
-    increment,
-  }
+  return { count, double, increment }
 })
 ```
 
-Exports from `app/states/`, including nested directories and multiple exports per file,
-are auto-imported. `defineState` is also auto-imported and can be used elsewhere, such
-as in `app/composables/`.
+Exports from this directory, including nested directories and multiple exports per file,
+are auto-imported. `defineState` is also auto-imported and may be used elsewhere.
 
 ```vue
 <script setup lang="ts">
 const { count, double, increment } = useCounter()
 
-count.value++
 increment()
 console.log(double.value)
 </script>
 ```
 
-Calling `useCounter()` in ten components returns the same object for that Nuxt app.
-Different server requests and different client apps receive different objects.
-
-The returned object is not cloned, wrapped, or transformed. Refs remain refs, computed
-refs remain computed refs, reactive objects remain reactive, and functions are unchanged.
+All callers within one Nuxt app receive the exact factory result. Refs, reactive objects,
+computed refs, and functions retain their normal Vue behavior. Server requests and separate
+client apps never share instances.
 
 ## Nuxt Layers
 
-Reusable Nuxt Layers can provide states from their resolved application directory:
-
-```text
-layers/
-└── admin/
-    ├── nuxt.config.ts
-    └── app/
-        └── states/
-            └── permissions.ts
-```
-
-```ts
-// layers/admin/app/states/permissions.ts
-export const usePermissions = defineState(() => {
-  const roles = ref(['reader'])
-  return { roles }
-})
-```
-
-`usePermissions()` is auto-imported in the consuming application. Local auto-discovered layers,
-layers listed in `extends`, package-provided layers, nested state directories, hydration, and
-request isolation use the same behavior as project states.
-
-nuxt-state follows Nuxt's normal layer priority. The project wins over every extended layer;
-higher-priority layers win over lower-priority layers when exports collide. No aliases or custom
-override API are generated.
+States in the resolved `app/states/` directory of local, extended, or package-provided
+[Nuxt Layers](https://nuxt.com/docs/4.x/guide/going-further/layers) are auto-imported too.
+Normal Nuxt priority applies: project exports override layer exports, and higher-priority
+layers override lower-priority ones.
 
 ## DevTools
 
-Enable Nuxt DevTools normally:
+With Nuxt DevTools enabled, a development-only **Nuxt State** tab provides read-only views
+of active states and discovered state exports. It shows hydration status, safe bounded value
+previews, source paths, and layer origins without executing lazy factories.
 
-```ts
-export default defineNuxtConfig({
-  devtools: {
-    enabled: true,
-  },
-})
-```
+The inspector cannot mutate state or invoke functions. It polls only while visible, adds no
+production runtime code, and labels active instances by their internal hydration key because
+Nuxt does not expose a stable mapping from that key to auto-import metadata.
 
-In development, the **Nuxt State** tab provides a read-only inspector. It shows active state
-instances, internal hydration keys, Hydrated/Client-only status, member classifications, bounded
-value previews, and a separate list of statically discovered states with project-relative source
-and layer origin.
+## Behavior
 
-Opening the panel never executes a state factory. Values are queried while the view is visible;
-there are no permanent deep watchers. Functions are descriptors and cannot be invoked, large
-values are truncated, and cyclic/shared graphs use reference markers. v0.3.0 does not support
-editing, patching, resetting, deleting, or disposing application state.
-
-Nuxt DevTools 3.4's stable iframe integration is used. No alpha/nightly override is required.
-Runtime hydration hashes cannot currently be mapped safely back to export names without another
-compiler transform, so active cards use `State $<internal-key>` while the separate Known states
-list shows names, sources, and layer origins. The internal key is debug information, not API.
-
-## Semantics
-
-- The factory is synchronous and takes no arguments.
-- The generated composable takes no arguments.
-- The factory is lazy and runs at first use.
-- It runs once per Nuxt app instance.
-- The exact factory result is returned to all callers in that app.
-- The factory runs in a detached Vue effect scope owned by the Nuxt app, so effects and Nuxt
-  composables are not disposed with the first consuming component.
-- A module-local `WeakMap` keys instances by `NuxtApp`, providing request isolation while
-  allowing old application instances to be garbage-collected.
-- Separate `defineState()` calls have separate closure-owned caches, including calls in
-  the same file.
-- Mutable state used during SSR is restored into the client-created refs and reactive proxies
-  before Vue hydrates the component tree.
-
-Async factories are rejected by TypeScript and guarded at runtime for JavaScript users.
-Expose an async function from synchronous state or use Nuxt's data-fetching APIs instead.
+- The factory and generated composable are synchronous and take no arguments.
+- The factory runs lazily, once per Nuxt app, inside an app-lived Vue effect scope.
+- Instances are stored in a `WeakMap` keyed by `NuxtApp` for SSR request isolation and garbage
+  collection.
+- Separate `defineState()` calls always have separate caches.
+- HMR recreates the state instead of preserving it.
+- Async work should be exposed as a function or use Nuxt data composables such as `useFetch`.
 
 ## SSR hydration
 
-Since v0.1.0, nuxt-state transparently hydrates mutable top-level members returned by the factory.
-Nuxt injects an internal call-site key at build time; the developer-facing call remains exactly
-`defineState(factory)`.
-
-On the server, the module captures the final values after rendering in one namespaced Nuxt
-payload entry. On the client, it runs the factory normally and patches those values into the
-new refs and reactive proxies before Vue hydration. The returned object is never replaced, so
-computed refs, functions, watchers, and closures created by the client factory remain wired to
-the hydrated state.
+Mutable top-level refs and reactive objects returned by the factory are snapshotted after SSR
+and restored into client-created values before Vue hydration. The factory result is never
+replaced, so its computed refs, watchers, functions, and closures remain connected.
 
 ```ts
 export const useAccount = defineState(() => {
   const count = ref(0)
   const user = reactive({ name: 'Guest', roles: [] as string[] })
   const double = computed(() => count.value * 2)
-  const increment = () => count.value++
 
-  return { count, user, double, increment }
+  return { count, user, double }
 })
 ```
 
-Nested serializable values inside supported refs and reactive objects are handled by Nuxt's
-payload serializer. Functions, readonly computed refs, and plain runtime objects are recreated
-by the factory rather than serialized. Concurrent SSR requests retain separate Nuxt-app
-registries and cannot share user state.
+Nuxt's payload serializer handles nested serializable values, including supported `Date`,
+`Map`, `Set`, shared-reference, and cyclic graphs. Functions and readonly computed refs are
+recreated by the client factory rather than serialized.
 
-Snapshot discovery is intentionally limited to mutable members exposed by the factory. Reactive
-state that must survive SSR hydration currently needs to be exposed from the `defineState`
-factory. A private ref captured only by a computed value or function is not visible to the
-snapshot layer; if it is mutated during SSR, its client value can differ and cause a hydration
-mismatch. Discovering closure-private Vue state would require a new explicit API, compiler-level
-analysis, or undocumented reactivity inspection, none of which belongs in v0.2.0.
+Reactive state that must survive SSR hydration currently needs to be exposed from the
+`defineState` factory. Closure-private refs cannot be discovered; mutating one during SSR may
+therefore cause a hydration mismatch.
 
-`useFetch()` can remain inside a synchronous state factory. Its request caching and payload
-hydration still belong to Nuxt; `nuxt-state` neither replaces nor triggers a second fetch
-mechanism. If multiple sibling SSR components must all render completed data, await the returned
-Nuxt `AsyncData` promise in a parent/page as you would with normal Nuxt data fetching.
-
-When a returned `useFetch().data` ref is snapshotted, both Nuxt's data payload and the internal
-state snapshot refer to it. Nuxt's graph serializer preserves the shared object identity, so the
-response body is emitted once rather than copied into the HTML twice. There is still a small
-snapshot-metadata overhead.
+`useFetch()` and `useAsyncData()` retain Nuxt's request caching and payload ownership. When
+their returned data ref is exposed, Nuxt's graph serializer keeps the shared payload object
+instead of duplicating the response body. The state snapshot adds only metadata overhead.
 
 ## Compatibility
 
-### Supported
+Supported:
 
-- `ref()` and `reactive()`, including nested serializable objects and arrays;
-- `shallowRef()` and `shallowReactive()` with their shallow semantics preserved;
-- `Date`, `Map`, `Set`, shared references, and cyclic graphs supported by Nuxt's payload
-  serializer;
-- readonly computed chains and functions as client-recreated runtime state;
-- readonly views when their mutable source is also returned and hydrated;
-- `useFetch()`, `useAsyncData()`, `callOnce()`, `useCookie()`, `useRuntimeConfig()`, `useRoute()`,
-  and `useRouter()` in valid Nuxt contexts;
-- project, local, explicit-extends, and package-provided Nuxt Layer states with native priority;
-- first use from plugins, route middleware, layouts, pages, and components;
-- state lifetime across client navigation and repeated component mount/unmount.
+- `ref`, `reactive`, `shallowRef`, and `shallowReactive`;
+- readonly computed values and functions recreated by the client factory;
+- readonly views whose mutable source is also returned;
+- Nuxt-serializable nested values, shared references, and cycles;
+- `useFetch`, `useAsyncData`, `callOnce`, `useCookie`, `useRuntimeConfig`, `useRoute`, and
+  `useRouter` in valid Nuxt contexts;
+- first use from plugins, middleware, layouts, pages, and components;
+- project and Nuxt Layer states.
 
-`useFetch` and `useAsyncData` continue to own their request/payload behavior. nuxt-state's
-snapshot metadata points at the same payload graph rather than serializing response bodies again.
-`callOnce({ mode: 'navigation' })` retains Nuxt's normal per-navigation behavior.
+Limitations:
 
-### Characterized or limited
+- Nuxt 4 and Vue 3 only; synchronous factories only.
+- Hydrated state must be an enumerable object containing supported mutable members.
+- Closure-private mutable state, `customRef`, and writable computed hydration are unsupported.
+  Restoring a writable computed may invoke its setter, so return its source refs instead.
+- Payload values must be serializable by Nuxt; DOM nodes, sockets, symbols, functions inside
+  refs, and arbitrary class/native resources are unsupported.
+- No persistence, reset API, keyed instances, or HMR state preservation.
+- Context-sensitive Nuxt composables still require a valid Nuxt context.
+- The supported transform path is the module's auto-imported `defineState`; barrel re-exports
+  and unrelated wrappers are not guaranteed to receive a hydration key.
+- DevTools is development-only and read-only.
 
-- A readonly view is not independent mutable state. If its mutable source is private, it follows
-  the private-state limitation below.
-- Writable computed refs are not supported hydration state. Vue exposes no public `isComputed`
-  check, and a writable computed currently looks like a mutable ref; restoring it invokes its
-  setter and may cause side effects. Return and hydrate its source refs instead.
-- Mutable reactive values that must survive SSR hydration need to be reachable through the
-  enumerable object returned from the factory.
-- The intended return is a composable-style object. Arbitrary ref, reactive-root, function, or
-  primitive returns still share per app, but the current member-based snapshot format does not
-  hydrate them.
-- Cycles are supported for Nuxt-serializable object graphs, not arbitrary native resources or
-  custom class instances.
-
-## Current limitations
-
-- Nuxt 4 and Vue 3 only.
-- Synchronous factories only.
-- No persistence or browser-storage integration.
-- Hydration is guaranteed for standard and shallow refs/reactives. `customRef()` and writable
-  computed hydration are not supported.
-- Hydrated values must be serializable by Nuxt's payload system; DOM nodes, sockets, functions
-  inside refs, symbols, and arbitrary native/class resources are unsupported.
-- Closure-private mutable state is not discoverable; return any ref/reactive value whose SSR
-  mutations must hydrate.
-- State resets when its module is hot-reloaded; HMR preservation is not implemented.
-- Context-sensitive composables must still be called while normal Nuxt context is available.
-- DevTools is read-only and development-only. Active hashes are not safely correlated with
-  static export names; there is no public or process-global state registry.
-- There is no reset API or keyed/multi-instance state.
-- The keyed transform is source-sensitive. The supported path is the module's auto-imported
-  `defineState`; a barrel re-export or unrelated manual wrapper is not guaranteed to receive an
-  internal hydration key.
-
-See [the architecture notes](./docs/architecture.md) and [roadmap](./docs/roadmap.md) for
-implementation constraints and deferred work.
+See [architecture](./docs/architecture.md) for implementation details and the
+[roadmap](./docs/roadmap.md) for deferred work.
 
 ## Development
 
@@ -277,9 +158,7 @@ pnpm prepack
 pnpm dev:build
 ```
 
-The browser suite requires Chromium, installed with
-`pnpm exec playwright-core install chromium`. The playground contains two counter components,
-a reactive object example, a nested state, and two independent states exported from one file.
+Install Chromium for browser tests with `pnpm exec playwright-core install chromium`.
 
 ## License
 

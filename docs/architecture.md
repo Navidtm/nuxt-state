@@ -1,139 +1,56 @@
 # Architecture
 
-This document describes the inspected prototype baseline, the Nuxt 4.5.2 hydration architecture
-introduced in v0.1.0, lifecycle/compatibility hardening completed for v0.2.0, and Layers plus
-read-only DevTools integration completed for v0.3.0.
-
-## Baseline
-
-The baseline inspected for v0.1.0 is commit `0cbf4f4` with package metadata at `0.0.2`.
-The user-facing API is already intentionally small:
+This document summarizes the implementation through v0.3.0. The public API remains:
 
 ```ts
 defineState(factory)
 ```
 
-Each call to `defineState` creates a wrapper-local `WeakMap<NuxtApp, Instance>`. The
-factory stays lazy, callers in one Nuxt app receive the exact same result, concurrent SSR
-requests use different keys in the weak map, and old app instances remain garbage
-collectable. Re-evaluating a state module creates a new wrapper and weak map, so HMR resets
-state instead of preserving it.
+## Instance ownership
 
-The pre-hydration baseline passed install consistency, formatting, lint, type checking,
-8 unit/integration tests, the module build, and the production playground build. The
-published runtime output was approximately 1.02 kB and the complete module output was
-approximately 2.13 kB. The playground had one unused regular composable with the same
-`useCounter` export as a state; it was removed while preparing v0.1.0 so production builds
-have no duplicate auto-import warning.
+Each `defineState` call owns a `WeakMap<NuxtApp, Instance>`. The factory runs lazily in a
+detached Vue effect scope and its exact result is reused within that app. This provides SSR
+request isolation while allowing discarded applications to be garbage-collected. The scope
+stops when the app unmounts.
 
-## Nuxt 4.5.2 research
+A second weak map holds per-app hydration records:
 
-The installed Nuxt source and current Nuxt 4 module documentation agree on the following
-behavior.
+```text
+defineState wrapper
+  └─ WeakMap<NuxtApp, factory result>
 
-### Keyed composables
-
-`nuxt.options.optimization.keyedComposables` is an array. Nuxt's defaults already contain
-`useState`, `useFetch`, `useAsyncData`, their lazy variants, `callOnce`, and
-`defineNuxtComponent`. A module must append its entry rather than replace this array.
-
-The `defineState` entry needs:
-
-```ts
-{
-  name: 'defineState',
-  source: resolvedDefineStateRuntimePath,
-  argumentLength: 2,
-}
+hydration registry
+  └─ WeakMap<NuxtApp, active entries and pending snapshots>
 ```
 
-The source must be the same exact resolved runtime file used by the auto-import. Nuxt's
-compiler matches imports by resolved source and injects a hash derived from the source file
-and call position when fewer than `argumentLength` arguments are present. Therefore
-developer code remains:
+No process-global strong collection retains Nuxt apps or state. HMR creates a new wrapper,
+stops the replaced scope, and resets the state.
+
+## Hydration identity and lifecycle
+
+The module appends `defineState` to Nuxt's keyed-composable configuration with an internal
+second argument. Nuxt transforms the developer call into the conceptual form:
 
 ```ts
-defineState(factory)
+defineState(factory, '$nuxt-generated-key')
 ```
 
-while transformed code is conceptually:
+The resolved auto-import source must match the configured runtime source, so barrel re-exports
+are not guaranteed to be transformed. If no key is injected, per-app sharing still works but
+cross-runtime hydration does not.
 
-```ts
-defineState(factory, '$generated-key')
-```
-
-The generated key format is a Nuxt implementation detail. `argumentLength: 2` is required
-because the runtime can receive the factory plus one compiler-only key. Two calls in one
-file receive different keys because the hash includes call position.
-
-The v0.1.0 integration tests must still prove that module-provided auto-imports are visible
-to this transform in both development and production builds. Explicit imports are only
-transformable when their resolved source exactly matches the configured runtime file;
-barrel re-exports are not followed by Nuxt's compiler.
-
-The first production-build verification used the module through a workspace link and
-confirmed the native transform in generated server output. For example, developer code
-equivalent to:
-
-```ts
-export const useLocale = defineState(() => ({ locale: ref('en') }))
-```
-
-appeared after transformation in this conceptual shape:
-
-```ts
-const useLocale = defineState(() => ({ locale: ref('en') }), '$<nuxt-generated-hash>')
-```
-
-Two adjacent `defineState` calls in the same source file received different hashes. The
-exact observed values are intentionally omitted because their format and value belong to
-Nuxt internals.
-
-### Hydration lifecycle
-
-Nuxt's `useHydration(key, get, set)` is designed primarily for module plugins. Its current
-implementation registers `get` on the server's `app:rendered` hook and `set` on the
-client's `app:created` hook.
-
-Nuxt applies runtime plugins before it calls `app:created`. On the client it calls
-`app:created`, then `app:beforeMount`, and only then mounts and hydrates the Vue app. A tiny
-runtime plugin can therefore register hydration early enough for component setup to see
-the server snapshot. On the server, collecting at `app:rendered` captures mutations made
-during rendering rather than the factory's initial values.
-
-The module uses one internal payload property:
+The runtime plugin stores snapshots in:
 
 ```text
 nuxtApp.payload.__nuxt_state__
 ```
 
-Nuxt 4.5.2's `NuxtPayload` has a string index signature, so a typed `useHydration` call can
-use this custom property without replacing or augmenting `payload.state`, which belongs to
-Nuxt's `useState` implementation.
+On the server, snapshot callbacks run at `app:rendered`, capturing mutations made during SSR.
+On the client, pending snapshots are received at `app:created`. When a state first runs, its
+client object is created normally and matching values are restored before the result reaches
+component setup and before Vue hydration.
 
-## Implemented v0.1.0 design
-
-The existing wrapper-local weak map remains the instance owner. Hydration is layered on
-top through a second internal `WeakMap<NuxtApp, Registry>`:
-
-```text
-defineState wrapper
-  └─ WeakMap<NuxtApp, exact factory result>
-
-runtime hydration plugin
-  └─ WeakMap<NuxtApp, registry>
-       ├─ active keyed instances
-       └─ unconsumed client snapshots
-```
-
-The registry is neither injected nor exposed to application code. On the server, a used
-state registers its keyed result and the plugin snapshots active entries once at
-`app:rendered`. Unused state factories remain lazy and produce no payload entry. On the
-client, the plugin receives the namespaced payload at `app:created`; when a keyed state is
-created during component setup, the matching snapshot is immediately applied before the
-factory result is returned.
-
-Snapshots contain only supported mutable top-level members returned from the factory:
+Snapshots contain mutable enumerable top-level members:
 
 ```ts
 type StateSnapshot = Record<
@@ -142,312 +59,93 @@ type StateSnapshot = Record<
 >
 ```
 
-Readonly computed refs and functions are not serialized. The client factory recreates
-computed values, functions, watchers, and closures, after which restoration patches the
-existing refs and reactive proxies. Nuxt's payload serializer remains responsible for
-nested serializable values; this module does not introduce another serializer.
+Readonly values, functions, and plain runtime members are recreated instead of serialized.
+Matched snapshots are consumed immediately; unmatched initial snapshots are cleared after
+mounting so HMR cannot replay the original server state.
 
-Client snapshots are consumed once. That detail prevents a hot-reloaded wrapper with the
-same logical key from restoring the initial SSR snapshot and preserves the baseline HMR
-reset behavior.
+## Restore behavior
 
-If no compiler key is supplied, the closure-local weak map still provides all v0 behavior.
-Only cross-runtime hydration is unavailable; no unstable fallback key is generated.
+Classification uses public Vue APIs. Standard and shallow refs/reactives are supported;
+readonly values are skipped. Ref restoration assigns `.value`, while reactive roots are
+patched without replacing the proxy.
 
-## v0.2.0 hardening
+The patcher handles arrays and plain objects recursively, deletes stale properties, and uses
+a `WeakMap` to preserve shared references and terminate cycles. Revived `Date`, `Map`, `Set`,
+and other Nuxt-serializable non-plain values are assigned rather than traversed. Nuxt remains
+the only serializer.
 
-### Vue primitive classification
+Writable computed refs look like mutable refs through Vue's public APIs. Restoring one invokes
+its setter and may cause side effects; return its mutable source refs instead. Direct primitive,
+function, ref, or reactive-root factory results may be shared, but are not supported hydration
+shapes because snapshots are member-based.
 
-Snapshot discovery uses only public Vue APIs:
+## Nuxt composables
 
-- mutable `ref` and `shallowRef` values become `ref` snapshot entries;
-- mutable `reactive` and `shallowReactive` roots become `reactive` entries;
-- readonly refs, readonly proxies, and readonly computed refs are skipped;
-- functions and plain runtime members are skipped;
-- nested values remain the responsibility of Nuxt's payload graph serializer.
+The app-lived effect scope prevents state effects and Nuxt data refs from being disposed with
+the first consuming component. Tests cover plugins, middleware, layouts, navigation,
+mount/unmount, cookies, runtime config, routing, `callOnce`, `useFetch`, and `useAsyncData`.
+Normal Nuxt context requirements still apply.
 
-Restoring a ref assigns `.value`, so a `shallowRef` remains shallow. Restoring a reactive root
-patches the existing proxy. A `shallowReactive` root therefore retains top-level tracking and its
-nested objects remain non-reactive. Computed chains and functions are recreated by the factory and
-remain connected to hydrated source refs.
+The module never reads or writes `nuxtApp.payload.data` or `payload.state`. Nuxt therefore owns
+request keys, deduplication, hydration, status, and refresh behavior. In the payload-efficiency
+fixture, a recognizable 16 KiB response was reachable from both Nuxt data and the state snapshot,
+but serialized once as a shared graph value:
 
-Vue exposes writable computed values as writable refs: `isRef()` is true and `isReadonly()` is
-false. There is no public `isComputed()` API. Consequently the current scanner characterizes a
-writable computed as mutable and restoration invokes its setter, which can have side effects.
-Writable computed hydration is not supported; applications should return its mutable source refs
-and let the computed remain derived runtime state.
+| Measurement   | Direct `useFetch` | In `defineState` | Difference |
+| ------------- | ----------------: | ---------------: | ---------: |
+| JSON payload  |          16,706 B |         16,761 B |      +55 B |
+| Complete HTML |          17,844 B |         17,975 B |     +131 B |
 
-Readonly views behave naturally when their mutable source is also returned: the source is
-hydrated once and the readonly view updates. If the source is hidden, it remains the documented
-private-closure-state limitation. A factory may still return any `T` for sharing and inference,
-but hydration intentionally assumes an enumerable composable-style object. A ref, reactive root,
-function, or primitive returned directly has no member snapshot and is not a supported hydrated
-shape.
-
-### Graph-aware restoration
-
-Reactive restore keeps a `WeakMap<source node, client node>` for one restoration. Arrays and plain
-objects are patched recursively; obsolete keys are deleted and arrays grow or shrink to match the
-server. Encountering the same source node again reuses the mapped client node, preserving shared
-reference identity. The same map terminates cycles instead of recursing indefinitely.
-
-Non-plain Nuxt-serializable objects such as `Date`, `Map`, and `Set` are assigned as revived graph
-values rather than traversed by nuxt-state. This preserves their types and keeps serialization
-ownership in Nuxt. No watcher, serializer, schema walker, or third-party dependency was added.
-
-### App-lived effect scope
-
-The first consumer can be a short-lived component, but a defined state belongs to the Nuxt app.
-v0.2.0 therefore runs the synchronous factory inside a detached Vue `effectScope`. This matters
-for more than explicit watchers: current Nuxt `useRoute()` selects an app route when the active
-scope is not a descendant of the current page component, and `useAsyncData`/`useFetch` register
-their dependency cleanup with the active scope.
-
-The detached scope makes route values update across pages and prevents Nuxt data refs from being
-purged merely because the first page unmounted. The scope stops through Vue's public
-`app.onUnmount()` hook. Registering a new wrapper for the same compiler key disposes the prior
-entry, so HMR still resets state rather than preserving its effects.
-
-Real fixtures prove first use from a Nuxt plugin followed by route middleware, layout, page, and
-component returns one exact app instance. `useCookie` retains its normal SSR/client source,
-`useRuntimeConfig` remains runtime-only through a computed, and `useRouter().currentRoute` plus
-`useRoute()` update through repeated navigation. Invalid contexts still receive Nuxt's normal
-`useNuxtApp()` error; no global fallback exists.
-
-### Navigation and cleanup
-
-The browser suite mutates SSR-hydrated state, navigates away and back repeatedly, mounts and
-unmounts consumers, and verifies the same state and client mutations survive. A state absent from
-initial SSR creates lazily on first client navigation and is created only once. `callOnce` keeps
-Nuxt's render and navigation modes, while refreshed `useFetch` data remains visible to a later
-page consumer.
-
-Matched hydration snapshots are deleted immediately after restore. `receiveStateSnapshots`
-replaces, rather than appends to, its pending map. Any unmatched initial entries are cleared at
-`app:mounted`, after initial hydration can no longer consume them. Active state entries remain for
-the Nuxt app lifetime by design and are replaced by key during HMR.
-
-### Memory and SSR ownership
-
-The only process-scope state owners are weak maps:
-
-```text
-wrapper WeakMap<NuxtApp, Instance>
-registry WeakMap<NuxtApp, Registry>
-```
-
-The registry's strong `active` and `hydration` maps are reachable only through their weakly held
-Nuxt app. Server request apps and all of their state therefore become collectible together.
-Client scopes are stopped on app unmount. No process-global strong map, set, array, or object
-retains Nuxt apps or user state.
-
-CI does not assert `FinalizationRegistry` timing because garbage collection is deliberately
-nondeterministic. Instead, ownership is verified structurally and cleanup behavior is tested
-deterministically. A 50-request concurrent test runs in the normal suite and an optional
-200-request production-fixture stress test verifies every HTML response and hydration payload
-contains only its own marker.
-
-## v0.3.0 Layers
-
-The module calls the public Nuxt Kit API `getLayerDirectories(nuxt)`. For every returned layer it
-registers:
-
-```ts
-resolve(layer.app, 'states/**')
-```
-
-Using the resolved `layer.app` matters because a layer can customize its source/application
-directory; `<layer-root>/app/states` is not assumed. No access to `nuxt.options._layers` exists in
-nuxt-state.
-
-`getLayerDirectories` returns project-first priority order. Nuxt 4.5.2's imports module also
-assigns scanned imports a priority based on which resolved layer application path contains the
-source. Registering directories in official order therefore produces normal Unimport collision
-behavior without reversing the list or adding aliases. The tested order is project, higher local
-layer, base local layer, explicit `extends`, then a workspace package layer. Project exports win;
-unrelated lower-layer exports remain available.
-
-Layer source location does not participate in runtime ownership. The imported wrapper still uses
-its closure `WeakMap<NuxtApp, Instance>` and the hydration registry still uses the request's
-NuxtApp. Real-browser hydration, concurrent SSR requests, and local-layer HMR prove that reusable
-source files do not create process-global state. HMR replaces the registry entry by generated key,
-stops the old effect scope, resets state, and leaves one inspector entry.
-
-## v0.3.0 DevTools
-
-### Stable integration strategy
-
-Nuxt 4.5.2 currently installs stable `@nuxt/devtools@3.4.2` and
-`@nuxt/devtools-kit@3.4.2`. That stable kit exposes `addCustomTab()` and the iframe host bridge;
-the newer `onDevtoolsReady(ctx)` / `ctx.docks.register()` path belongs to DevTools 4 alpha at the
-time of this release. nuxt-state keeps the stable adapter isolated in `src/devtools/register.ts`
-instead of forcing an alpha/nightly override. It can move to the dock API when that API reaches the
-normal stable Nuxt 4 toolchain.
-
-The adapter registers one iframe at `/__nuxt_state_devtools__/`. A development server handler
-serves a small standalone HTML/CSS/JavaScript view. The app-side development client plugin exposes
-one internal `nuxt-state:inspect` hook. The iframe obtains the host Nuxt app through the official
-DevTools iframe bridge and requests a fresh read-only representation. No separate websocket,
-public API route, or production RPC endpoint is added.
-
-### Active and known state
-
-Active state inspection reuses the existing per-app hydration registry. In development only, an
-entry also references the exact instance already held by its snapshot/restore closures and records
-Hydrated, Client-only, or Server status. There is no second state graph. Lazy factories are never
-called by the inspector.
-
-Build metadata is collected from Nuxt's `imports:extend` results for the registered state
-directories. It contains the winning export name, project-relative source, and layer origin.
-Static metadata is displayed separately as Known states. It does not imply factory execution.
-
-The runtime generated hydration key is available on the active registry entry. There is no public,
-stable correlation between that hash and Nuxt's auto-import export metadata. Stack traces and
-runtime heuristics are rejected, and v0.3.0 does not add another compiler transform merely for a
-prettier label. Active cards therefore fall back to `State $<key>`; Known states provide accurate
-names and sources.
-
-### Safe inspection and updates
-
-Enumerable members use public Vue APIs only: mutable and shallow refs, mutable and shallow
-reactives, readonly/readonly refs, functions, and other values receive conservative labels. A
-readonly ref is not claimed to be computed because Vue has no public computed detector.
-
-Values are converted to a bounded representation at query time. Strings, collection items,
-depth, and total nodes have limits; truncation is explicit. Date, Map, Set, arrays, cycles, and
-shared references are represented safely. Functions become name descriptors and are never sent as
-callable values. Getter, proxy, or unsupported class failures are contained to an unavailable
-preview instead of escaping into the application.
-
-The iframe refreshes once per second only while intersecting/visible, prevents overlapping
-requests, supports manual refresh, and stops its timer on `pagehide`. No deep watcher is installed,
-whether the panel is closed or open.
-
-### Production and memory exclusion
-
-Registration, the view handler, static metadata template, and client bridge are installed only
-when `nuxt.options.dev` is true and DevTools is not disabled. Production builds contain no view,
-polling, endpoint, inspector plugin, or imported inspector implementation. Core registries remain
-weakly keyed by NuxtApp. Debug references exist only inside the same per-app registry, disappear
-when HMR replaces an entry, and become collectible with the Nuxt app.
-
-## v0.3.0 writable computed characterization
-
-A writable computed remains publicly indistinguishable from a normal mutable ref:
-`isRef()` is true, while `isReadonly()`, `isReactive()`, and `isShallow()` are false. There is no
-public Vue `isComputed()` or reliable writable-computed detector.
-
-The real SSR/Chromium characterization returns source refs before the writable computed. All three
-enter the snapshot. On the client, the source refs restore first; assigning the computed snapshot
-then invokes its setter exactly once with already-restored source values. The setter repeats the
-same source assignments, so the displayed state hydrates without a mismatch, but arbitrary setter
-side effects still run once during hydration. Changing return order can also change restore order.
-For those reasons writable computed remains unsupported hydration state; return and hydrate its
-sources instead. No private Vue fields or heuristics are used.
-
-## Lifecycle and isolation details
-
-The server plugin registers snapshot collection before application rendering, but the
-snapshot functions are evaluated only at `app:rendered`. Registry entries contain callbacks,
-not eagerly captured values, so mutations made during page or component SSR are included.
-
-The client plugin receives the module payload on `app:created`, before component setup and Vue
-mounting. Snapshots for lazy states remain pending. The first invocation creates the normal
-client runtime object, registers it, restores matching mutable members synchronously, consumes
-the pending snapshot, and only then returns the state to component setup.
-
-Both the wrapper instance cache and hydration registry use `NuxtApp` as a weak key. Each SSR
-request therefore has separate instances, active entries, and pending snapshots. There is no
-process-global map containing application state. A newly evaluated wrapper has a new local weak
-map; because client hydration entries are consumed once, HMR does not replay the original SSR
-snapshot into that new wrapper.
-
-Reactive restoration mutates existing proxy roots. Arrays are spliced, plain nested objects are
-deep-patched, and stale object properties are removed. Ref restoration assigns `.value`.
-Consequently, closures and computed refs keep their original client-side dependencies and proxy
-identity.
-
-## Nuxt data composables
-
-The hydration layer does not read, replace, or write `nuxtApp.payload.data` or
-`nuxtApp.payload.state`. Nuxt therefore retains ownership of `useFetch()` request keys,
-deduplication, payload reuse, `status`, and `refresh()`. A real-browser regression fixture proves
-that SSR data is reused without a browser fetch during hydration and that a later refresh makes
-exactly one request and updates multiple consumers.
-
-The equivalent `useAsyncData()` fixture covers two consumers, SSR, hydration without a client
-request, manual refresh, error state, recovery, and later navigation. Its approximately 8 KiB
-response occurred once in the serialized graph; the state variant added 128 bytes of snapshot
-metadata compared with direct `useAsyncData`. `callOnce`, including navigation mode, remains owned
-by Nuxt and operates from exposed state functions without custom once semantics.
-
-The snapshot scanner uses only public Vue introspection. Some Nuxt `AsyncData` members are refs;
-if they appear as mutable top-level state they can also be represented in the module's internal
-snapshot. This does not initiate, cache, or replace a request: Nuxt's own payload remains the
-authority for data fetching, and the regression suite verifies that coexistence. Writable
-computed and advanced reactivity primitives are deliberately not official v0.1.0 guarantees.
-
-### Payload-efficiency audit
-
-A characterization fixture returned a recognizable response containing approximately 16 KiB of
-text. The response was reachable through both Nuxt's `payload.data` entry and the module's
-`__nuxt_state__` ref snapshot. In the serialized payload, however, the large object appeared only
-once: the snapshot's `value` was a graph reference to the same object used by Nuxt data.
-
-For the audited production fixture, the direct-`useFetch` JSON payload was 16,706 bytes and the
-`defineState` variant was 16,761 bytes, an increase of 55 bytes. Complete HTML increased from
-17,844 to 17,975 bytes, or 131 bytes. These figures characterize this fixture rather than promise
-fixed overhead, but they prove the 16 KiB body was not duplicated. No undocumented Nuxt internals
-are used to obtain this behavior.
+These fixture-specific numbers demonstrate metadata overhead, not a duplicated response body.
 
 ## Private reactive state
 
-Snapshot discovery walks the enumerable members returned by the factory. It cannot observe a ref
-that exists only inside a factory closure:
+The scanner only sees values returned by the factory. If a private ref is mutated during SSR
+but only a computed view is returned, the server can render the mutated value while the client
+recreates the ref at its default, causing a hydration mismatch.
 
-```ts
-const count = ref(0)
-const double = computed(() => count.value * 2)
-return { double, increment: () => count.value++ }
-```
+Reactive state that must survive SSR hydration therefore needs to be exposed from the
+`defineState` factory. Supporting closure-private state would require a new explicit API,
+compiler rewriting, or undocumented Vue internals; none is used.
 
-If SSR invokes `increment()`, the server renders `double` as `2`. The snapshot is empty because
-`double` is readonly and `count` was not exposed. The client recreates `count` as `0`, renders
-`double` as `0`, and Vue reports a text hydration mismatch before correcting the DOM.
+## Nuxt Layers
 
-Reactive state that must survive SSR hydration currently needs to be exposed from the
-`defineState` factory. Supporting closure-private state would require substantially more magic:
-instrumenting Vue state creation, inspecting undocumented computed/effect internals, statically
-rewriting factory closures, or introducing a new explicit registration API. v0.1.0 deliberately
-does none of these.
+The module uses the public `getLayerDirectories(nuxt)` API and registers
+`resolve(layer.app, 'states/**')` for every resolved layer. This respects custom app directories
+and Nuxt's native project-first import priority without accessing `nuxt.options._layers` or
+creating aliases.
 
-## Verified behavior
+Layer location does not affect runtime ownership: instances and hydration records remain keyed
+by the current `NuxtApp`. Tests cover local, explicit, package, nested, collision, hydration,
+concurrency, and HMR cases.
 
-The automated suite proves:
+## DevTools
 
-- actual key injection for the module auto-import and distinct keys for two call sites;
-- built-in Nuxt keyed-composable entries remain present;
-- ref and reactive restoration occurs before Vue hydration;
-- computed values and functions remain connected to restored state;
-- concurrent SSR request payloads remain isolated;
-- `useFetch` retains its own Nuxt payload behavior and does not refetch on hydration;
-- production and development browser hydration both receive matching server/client keys;
-- built declarations expose one public argument even though runtime JavaScript accepts the
-  compiler-only key.
+The v0.3 integration uses the stable Nuxt DevTools 3 iframe API. In development, the module
+registers a read-only tab and an app hook that queries the existing per-app registry. It adds no
+public state endpoint, websocket, global registry, or eager factory execution.
 
-A production-output inspection additionally confirmed that two calls in one state source receive
-distinct Nuxt-generated hashes. The exact hashes are not asserted because their spelling is a
-Nuxt implementation detail.
+Active entries show hydration status and bounded member previews. Static auto-import metadata
+separately lists export names, source paths, and layer origins. Nuxt exposes no stable mapping
+between generated runtime keys and static exports, so active entries use the internal key as a
+fallback label.
 
-## Deliberate limitations
+Preview generation limits depth, item count, node count, and string length; represents cycles,
+shared references, collections, and functions safely; and contains getter/proxy errors. The view
+polls at most once per second while visible and installs no deep watcher.
 
-- The primary supported import path is the module auto-import. Nuxt's native keyed-composable
-  compiler compares resolved sources exactly and does not follow barrel re-exports.
-- Missing compiler keys preserve v0 sharing and request isolation but cannot provide hydration;
-  random IDs, counters, and stack-derived fallbacks are intentionally avoided.
-- Payload values must be serializable by Nuxt. The module does not add a serializer or persistence
-  format.
-- Mutable state hidden inside the factory closure cannot be snapshotted. It must be returned if an
-  SSR mutation needs to hydrate.
-- Standard and shallow refs/reactives are supported in v0.2.0. Readonly computed refs and
-  functions are recreated, not snapshotted; writable computed hydration remains unsupported.
+All registration, UI, metadata, inspector imports, and debug references are gated by development
+mode. Production builds contain no DevTools route, polling, bridge, or inspector code.
+
+## Deliberate constraints
+
+- Nuxt 4, Vue 3, synchronous factories, and serializable payload values only.
+- Hydration supports enumerable returned mutable refs/reactives, including shallow variants.
+- Private mutable state, `customRef`, and writable computed hydration are unsupported.
+- Missing compiler keys preserve sharing but cannot hydrate.
+- No persistence, reset API, keyed instances, or HMR preservation.
+- DevTools is read-only and development-only.
+
+The test suite verifies keyed transformation, pre-mount restoration, request isolation,
+graph-aware restoration, Nuxt composable behavior, browser hydration, Layers, DevTools safety,
+production exclusion, and public one-argument declarations.
