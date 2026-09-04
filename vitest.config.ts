@@ -10,6 +10,8 @@ export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
     exclude: ['test/types/**', 'test/stress/**'],
+    // Nuxt e2e suites write to fixture-local build directories shared by multiple files.
+    fileParallelism: false,
     testTimeout: 60_000,
     hookTimeout: 120_000,
   },
