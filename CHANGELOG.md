@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.0
+
+- Stabilize `defineState(factory)` as the complete public API for the 1.x release line.
+- Declare the tested Nuxt 4 behavior from 0.1–0.3 production-ready: per-app lazy state,
+  SSR hydration, Nuxt composables, Layers, and development-only read-only DevTools.
+- Keep payload keys, snapshots, registries, and compiler-injected hydration identity internal
+  so their implementation can evolve without breaking the public API.
+- Preserve the documented constraints around closure-private state, writable computed refs,
+  custom refs, HMR preservation, and non-serializable payload values.
+- Add a reproducible production client bundle-size benchmark against `@pinia/nuxt`.
+
 ## 0.3.0
 
 - Discover `app/states/` across resolved Nuxt Layers with the official

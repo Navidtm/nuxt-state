@@ -2,9 +2,9 @@
 
 > Define shared Nuxt state with the Vue Composition API.
 
-`nuxt-state` is an experimental Nuxt 4 module. A composable created with
-`defineState` runs lazily once per Nuxt application and returns the same result to every
-caller in that app.
+`nuxt-state` is a focused Nuxt 4 module. A composable created with `defineState` runs lazily
+once per Nuxt application and returns the same result to every caller in that app. Its stable
+1.x public API is `defineState(factory)`.
 
 It sits between a simple `useState()` value and a full state-management library such as
 Pinia. There are no stores, IDs, actions, getters, or special wrappers—only standard Vue

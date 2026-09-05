@@ -24,6 +24,13 @@
 - bounded previews and known-state source/layer metadata;
 - writable-computed behavior characterized without claiming support.
 
+### v1.0.0 — stable release
+
+- stabilize `defineState(factory)` as the 1.x public API;
+- publish the tested SSR, Layers, and DevTools behavior as the supported contract;
+- document deliberate limitations and keep internal hydration formats private;
+- add a reproducible production bundle-size comparison with Pinia.
+
 ## Future investigation
 
 - propose the primitive and required hooks to Nuxt core;

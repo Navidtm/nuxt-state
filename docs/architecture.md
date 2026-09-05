@@ -1,10 +1,13 @@
 # Architecture
 
-This document summarizes the implementation through v0.3.0. The public API remains:
+This document summarizes the implementation through v1.0.0. The stable public API is:
 
 ```ts
 defineState(factory)
 ```
+
+The payload format, generated hydration keys, registry, and snapshot machinery are internal
+implementation details and are not public API.
 
 ## Instance ownership
 
