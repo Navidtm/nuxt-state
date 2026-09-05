@@ -44,6 +44,7 @@
     "access": "public"
   },
   "scripts": {
+    "bench:bundle-size": "pnpm run prepack && node benchmarks/bundle-size/run.mjs",
     "prepack": "nuxt-module-build build",
     "dev": "pnpm dev:prepare && nuxt dev playground",
     "dev:build": "nuxt build playground",
@@ -69,12 +70,14 @@
     "@nuxt/module-builder": "^1.0.3",
     "@nuxt/schema": "^4.5.2",
     "@nuxt/test-utils": "^4.1.0",
+    "@pinia/nuxt": "1.0.2",
     "@types/node": "latest",
     "changelogen": "^0.6.2",
     "happy-dom": "^20.8.3",
     "nuxt": "^4.5.2",
     "oxfmt": "^0.65.0",
     "oxlint": "^1.80.0",
+    "pinia": "4.0.3",
     "playwright-core": "^1.62.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11",
