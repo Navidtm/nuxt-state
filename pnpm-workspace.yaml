@@ -5,6 +5,7 @@ packages:
 
 shamefullyHoist: true
 strictPeerDependencies: false
+enableGlobalVirtualStore: false
 
 allowBuilds:
   esbuild: true
